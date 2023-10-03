@@ -25,7 +25,8 @@ stim_amp = 1  # 100e-3
 r0 = 5
 pwd = 0.0004
 
-class DingModelPulseWidth:
+
+class DynamicsDingModelPulseWidth:
 
     def __init__(self, custom_time=False):
         self.custom_time = custom_time
@@ -39,6 +40,7 @@ class DingModelPulseWidth:
             stochastic_variables: MX | SX,
             nlp: NonLinearProgram,
             nb_phases=None,
+            with_contact: bool = False,
             **extra_parameters: list[MX] | list[SX]
     ) -> DynamicsEvaluation:
 
@@ -77,14 +79,46 @@ class DingModelPulseWidth:
         f_dot = a * (cn / (km + cn)) - (f / (tau1 + tau2 * (cn / (km + cn))))
 
         muscles_tau = nlp.model.muscle_joint_torque_from_muscle_forces(f, q, qdot)
-        ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
+        # todo: question on how contact force is going to influence
+        if with_contact:
+            # ddq = nlp.model.constrained_forward_dynamics(q, qdot, joints_tau + muscles_tau)
+            ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
+        else:
+            ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
 
         sum_var_list.clear()
         return DynamicsEvaluation(dxdt=vertcat(qdot, ddq, cn_dot, f_dot), defects=None)
 
-    def configure_fes_dynamics(self,
-                               ocp: OptimalControlProgram,
+    @staticmethod
+    def contact_forces_from_fes_driven(
+            time: MX.sym,
+            states: MX.sym,
+            controls: MX.sym,
+            parameters: MX.sym,
+            stochastic_variables: MX.sym,
+            nlp,
+            with_passive_torque: bool = False,
+            with_ligament: bool = False,
+    ) -> MX:
+        """
+        Contact forces of a forward dynamics driven by fes with contact constraints.
+        """
+        q = DynamicsFunctions.get(nlp.states["q"], states)
+        qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
+        f = DynamicsFunctions.get(nlp.states["f"], states)
+        residual_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if "tau" in nlp.controls else None
+
+        muscles_tau = nlp.model.muscle_joint_torque_from_muscle_forces(f, q, qdot)
+        tau = muscles_tau + residual_tau if residual_tau is not None else muscles_tau
+        tau = tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else tau
+        tau = tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else tau
+
+        return nlp.model.contact_forces(q, qdot, tau, nlp.external_forces)
+
+    @staticmethod
+    def configure_fes_dynamics(ocp: OptimalControlProgram,
                                nlp: NonLinearProgram,
+                               with_contact: bool = False,
                                **extra_parameters):
         # control variables
         ConfigureProblem.configure_tau(ocp, nlp, as_states=False, as_controls=True)
@@ -108,12 +142,18 @@ class DingModelPulseWidth:
 
         ConfigureProblem.configure_dynamics_function(ocp,
                                                      nlp,
-                                                     DingModelPulseWidth.fes_system_dynamics,
+                                                     DynamicsDingModelPulseWidth.fes_system_dynamics,
+                                                     with_contact=with_contact,
                                                      **extra_parameters)
+
+        if with_contact:
+            ConfigureProblem.configure_contact_function(ocp,
+                                                        nlp,
+                                                        DynamicsDingModelPulseWidth.contact_forces_from_fes_driven)
 
 
 class FesDynamicsFcn(FcnEnum):
     """
     Selection of valid dynamics functions
     """
-    FES_DRIVEN = (DingModelPulseWidth().configure_fes_dynamics,)
+    FES_DRIVEN = (DynamicsDingModelPulseWidth.configure_fes_dynamics,)

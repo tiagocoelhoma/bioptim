@@ -19,22 +19,24 @@ from bioptim import (
     CostType,
     MultinodeObjectiveList, PhaseTransitionList, PhaseTransitionFcn, MultinodeConstraintList, MultinodeConstraintFcn,
     NonLinearProgram, DynamicsEvaluation, DynamicsFunctions, ConfigureProblem, Constraint, Axis, InitialGuessList,
-    InterpolationType, ParameterList, ParameterObjectiveList,
+    InterpolationType, ParameterList, ParameterObjectiveList, PlotType,
 )
 import numpy as np
 
 from custom_package.fes_dynamics import FesDynamicsFcn
 from custom_package.fes_objectives import FesObjective
+import biorbd as biorbd
+
+from sandbox.custom_package.fes_plotting import fes_plot_callback
 
 # PROBLEM PARAMETERS
 # t_stim = 1.0  # stimulation period (total)
 t_phase = round(1 / 50, 3)  # period a stimulation pulse
-n_nodes = 1
+n_nodes = 2
 f_min, f_max, f_init = 0, 1000, 0
 cn_min, cn_max, cn_init = 0.0, 2.0, 0.0
 tau_min, tau_max, tau_init = -0.0, 0.0, 0.0
-fes_min, fes_max, fes_init = 0.0002, 0.0008, 0.0002  # todo: verificar scala?
-t_stim = 10 * t_phase  # stimulation period (total)
+t_stim = 15 * t_phase  # stimulation period (total)
 n_phase_off = 5         # todo: this value should be calculated in regard to the cycling range
 
 
@@ -61,10 +63,17 @@ def prepare_ocp(
         extra_parameters = {'phase_index': phase_index, 'stim': stim, 't_phase': t_phase}
         dynamics.add(FesDynamicsFcn.FES_DRIVEN,
                      expand=False,
+                     with_contact=True,
                      **extra_parameters)
 
     # Constraints
     constraints = ConstraintList()
+    # Constraints the acceleration at the contact point to approach zero
+    # constraints.add(
+    #     ConstraintFcn.TRACK_CONTACT_FORCES,
+    #     node=Node.ALL,
+    #     contact_index=0,
+    # )
 
     # Constraints
     multinode_constraints = MultinodeConstraintList()
@@ -88,6 +97,15 @@ def prepare_ocp(
             target=np.ones((bio_model[i].nb_tau, n_shoot[i])) * 1,  # automatically handled for every cost functions
             quadratic=True,
             weight=1e10,
+            phase=i,
+        )
+        objective_functions.add(
+            # Adding an objective aiming to minimize the acceleration at the contact point to approach zero
+            ObjectiveFcn.Lagrange.MINIMIZE_CONTACT_FORCES,
+            # contact_index=0,
+            # node=Node.ALL_SHOOTING,
+            quadratic=True,
+            weight=10,
             phase=i,
         )
     # Path constraint
@@ -137,7 +155,7 @@ def prepare_ocp(
     for i in range(n_phase_total - 1):
         phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=i)
 
-    return OptimalControlProgram(
+    ocp = OptimalControlProgram(
         bio_model,
         dynamics,
         n_shoot,
@@ -155,13 +173,21 @@ def prepare_ocp(
         n_threads=10,
     )
 
+    numerical_model = biorbd.Model(biorbd_model_path)
+    for i in range(n_phase + n_phase_off - 1):
+        ocp.add_plot("Muscular joint torque",
+                     lambda t, x, u, p, s: fes_plot_callback(x, numerical_model),
+                     plot_type=PlotType.INTEGRATED,
+                     phase=i)
+    return ocp
+
 
 def main():
     """
     Defines a multiphase ocp and animate the results
     """
     # --- Prepare the optimal control program --- #
-    model_path = "models/arm26_one_muscle.bioMod"
+    model_path = "models/arm26_one_muscle_with_contact.bioMod"
     # model_path = "models/leg6of9musc_clean_RF.bioMod"
     n_phases = int(t_stim / t_phase)  # number of stimulation corresponding to phases
 

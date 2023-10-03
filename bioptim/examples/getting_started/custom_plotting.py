@@ -97,13 +97,13 @@ def prepare_ocp(
         "My New Extra Plot",
         lambda t, x, u, p: custom_plot_callback(x, [1, 3]),
         plot_type=PlotType.STEP,
-        axes_idx=[1, 2],
+        # axes_idx=[1, 2],
     )
     ocp.add_plot(
         "My Second New Extra Plot",
         lambda t, x, u, p: custom_plot_callback(x, [1, 3]),
         plot_type=PlotType.INTEGRATED,
-        axes_idx=[1, 2],
+        # axes_idx=[1, 2],
     )
 
     return ocp

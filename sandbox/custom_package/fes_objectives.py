@@ -3,7 +3,6 @@ from bioptim.limits import penalty
 from casadi import MX
 from bioptim import PenaltyController
 
-
 class FesObjective:
 
     @staticmethod
