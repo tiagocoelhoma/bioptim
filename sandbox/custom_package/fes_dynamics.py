@@ -82,7 +82,8 @@ class DynamicsDingModelPulseWidth:
         # todo: question on how contact force is going to influence
         if with_contact:
             # ddq = nlp.model.constrained_forward_dynamics(q, qdot, joints_tau + muscles_tau)
-            ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
+            # ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
+            ddq = DynamicsFunctions.forward_dynamics(nlp, q, qdot, joints_tau + muscles_tau, with_contact)
         else:
             ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
 
