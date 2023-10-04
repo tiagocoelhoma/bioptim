@@ -15,7 +15,7 @@ from bioptim import (
 
 # Model parameters
 tauc = 0.011  # 11ms
-a_scale = 250  #
+a_scale = 1500  #
 pd0 = 0.000086  # average value
 pdt = 0.000138  # average value
 km = 0.18
@@ -81,9 +81,9 @@ class DynamicsDingModelPulseWidth:
         muscles_tau = nlp.model.muscle_joint_torque_from_muscle_forces(f, q, qdot)
         # todo: question on how contact force is going to influence
         if with_contact:
-            # ddq = nlp.model.constrained_forward_dynamics(q, qdot, joints_tau + muscles_tau)
+            ddq = nlp.model.constrained_forward_dynamics(q, qdot, joints_tau + muscles_tau)
             # ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
-            ddq = DynamicsFunctions.forward_dynamics(nlp, q, qdot, joints_tau + muscles_tau, with_contact)
+            # ddq = DynamicsFunctions.forward_dynamics(nlp, q, qdot, joints_tau + muscles_tau, with_contact)
         else:
             ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
 

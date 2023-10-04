@@ -128,7 +128,8 @@ segment r_ulna_radius_hand_rotation1
         -0.06148106796684942    3.469446951953614e-18    0.9981082497813831    0.0
         0.0    0.0    0.0    1.0
     rotations z
-    rangesQ	pi/4 3*pi/4
+    //rangesQ	pi/4 3*pi/4
+    rangesQ	pi/2 pi/2
 endsegment
 
 
@@ -198,10 +199,14 @@ segment Weight
 endsegment
 
 contact    contact_1
-    parent    r_ulna_radius_hand_rotation3
-    com    0 -0.181479 0
+    parent    r_ulna_radius_hand
+    position    0 -0.181479 0
     axis    z
 endcontact
+ /*   contact
+        parent base
+        axis z
+    endcontact*/
 
 
 // MUSCLE DEFINITION

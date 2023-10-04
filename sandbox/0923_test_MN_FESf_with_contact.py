@@ -69,11 +69,11 @@ def prepare_ocp(
     # Constraints
     constraints = ConstraintList()
     # Constraints the acceleration at the contact point to approach zero
-    constraints.add(
-        ConstraintFcn.TRACK_CONTACT_FORCES,
-        node=Node.ALL,
-        contact_index=0,
-    )
+    # constraints.add(
+    #     ConstraintFcn.TRACK_CONTACT_FORCES,
+    #     node=Node.ALL,
+    #     contact_index=0,
+    # )
 
     # Constraints
     multinode_constraints = MultinodeConstraintList()
@@ -99,15 +99,15 @@ def prepare_ocp(
             weight=1e10,
             phase=i,
         )
-        # objective_functions.add(
-        #     # Adding an objective aiming to minimize the acceleration at the contact point to approach zero
-        #     ObjectiveFcn.Lagrange.MINIMIZE_CONTACT_FORCES,
-        #     # contact_index=0,
-        #     # node=Node.ALL_SHOOTING,
-        #     quadratic=True,
-        #     weight=10,
-        #     phase=i,
-        # )
+        objective_functions.add(
+            # Adding an objective aiming to minimize the acceleration at the contact point to approach zero
+            ObjectiveFcn.Lagrange.MINIMIZE_CONTACT_FORCES,
+            # contact_index=0,
+            # node=Node.ALL_SHOOTING,
+            quadratic=True,
+            weight=10,
+            phase=i,
+        )
     # Path constraint
     x_bounds = BoundsList()
     for i in range(n_phase_total):
@@ -202,7 +202,7 @@ def main():
 
     # --- Show results --- #
     # sol.print_cost()
-    # sol.animate()
+    sol.animate()
 
 
 if __name__ == "__main__":
