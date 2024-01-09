@@ -27,6 +27,8 @@ from bioptim import (
     ParameterObjectiveList,
     PenaltyController,
     ObjectiveList,
+    PhaseDynamics,
+    VariableScaling,
 )
 
 
@@ -97,7 +99,7 @@ def prepare_ocp(
     target_m: float,
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
     use_sx: bool = False,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     """
@@ -131,10 +133,11 @@ def prepare_ocp(
         The type of ode solver used
     use_sx: bool
         If the program should be constructed using SX instead of MX (longer to create the CasADi graph, faster to solve)
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     expand_dynamics: bool
         If the dynamics function should be expanded. Please note, this will solve the problem faster, but will slow down
         the declaration of the OCP, so it is a trade-off. Also depending on the solver, it may or may not work
@@ -155,7 +158,7 @@ def prepare_ocp(
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1)
 
     # Dynamics
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics)
+    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -178,7 +181,8 @@ def prepare_ocp(
     parameter_init = InitialGuessList()
 
     if optim_gravity:
-        g_scaling = np.array([1, 1, 10.0])
+        # WATCH OUT, it seems parameters scaling are broken
+        g_scaling = VariableScaling("gravity_xyz", np.array([1, 1, 10.0]))
         parameters.add(
             "gravity_xyz",  # The name of the parameter
             my_parameter_function,  # The function that modifies the biorbd model
@@ -199,12 +203,12 @@ def prepare_ocp(
             weight=1000,
             quadratic=True,
             custom_type=ObjectiveFcn.Parameter,
-            target=target_g / g_scaling,  # Make sure your target fits the scaling
+            target=target_g / g_scaling.scaling,  # Make sure your target fits the scaling
             key="gravity_xyz",
         )
 
     if optim_mass:
-        m_scaling = np.array([10.0])
+        m_scaling = VariableScaling("mass", np.array([10.0]))
         parameters.add(
             "mass",  # The name of the parameter
             set_mass,  # The function that modifies the biorbd model
@@ -221,7 +225,7 @@ def prepare_ocp(
             weight=10000,
             quadratic=True,
             custom_type=ObjectiveFcn.Parameter,
-            target=target_m / m_scaling,  # Make sure your target fits the scaling
+            target=target_m / m_scaling.scaling.T,  # Make sure your target fits the scaling
             key="mass",
         )
 
@@ -239,7 +243,6 @@ def prepare_ocp(
         parameter_init=parameter_init,
         ode_solver=ode_solver,
         use_sx=use_sx,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -259,7 +262,7 @@ def main():
         max_g=np.array([1, 1, -5]),
         min_m=10,
         max_m=30,
-        target_g=np.array([0, 0, -9.81]),
+        target_g=np.array([0, 0, -9.81])[:, np.newaxis],
         target_m=20,
     )
 
@@ -268,15 +271,15 @@ def main():
 
     # --- Get the results --- #
     if optim_gravity:
-        print(sol.parameters["gravity_xyz"])
         gravity = sol.parameters["gravity_xyz"]
-        print(f"Optimized gravity: {gravity[:, 0]}")
+        print(f"Optimized gravity: {gravity}")
 
     if optim_mass:
         mass = sol.parameters["mass"]
-        print(f"Optimized mass: {mass[0, 0]}")
+        print(f"Optimized mass: {mass}")
 
     # --- Show results --- #
+    # sol.graphs()
     sol.animate(n_frames=200)
 
 

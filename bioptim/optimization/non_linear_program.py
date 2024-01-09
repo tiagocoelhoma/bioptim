@@ -6,14 +6,14 @@ from casadi import SX, MX, Function, horzcat
 from .optimization_variable import OptimizationVariable, OptimizationVariableContainer
 from ..dynamics.ode_solver import OdeSolver
 from ..limits.path_conditions import InitialGuessList, BoundsList
-from ..misc.enums import ControlType
+from ..misc.enums import ControlType, PhaseDynamics
 from ..misc.options import OptionList
 from ..misc.mapping import NodeMapping
 from ..dynamics.dynamics_evaluation import DynamicsEvaluation
-from ..interfaces.biomodel import BioModel
-from ..interfaces.holonomic_biomodel import HolonomicBioModel
-from ..interfaces.variational_biomodel import VariationalBioModel
-from ..interfaces.stochastic_bio_model import StochasticBioModel
+from ..models.protocols.biomodel import BioModel
+from ..models.protocols.holonomic_biomodel import HolonomicBioModel
+from ..models.protocols.variational_biomodel import VariationalBioModel
+from ..models.protocols.stochastic_biomodel import StochasticBioModel
 
 
 class NonLinearProgram:
@@ -72,9 +72,9 @@ class NonLinearProgram:
         The collection of plot for each of the variables
     plot_mapping: list
         The mapping for the plots
-    t0: float
-        The time stamp of the beginning of the phase
     tf: float
+        The time stamp of the end of the phase
+    tf_mx:
         The time stamp of the end of the phase
     variable_mappings: BiMappingList
         The list of mapping for all the variables
@@ -82,6 +82,8 @@ class NonLinearProgram:
         The bounds for the controls
     u_init = InitialGuess()
         The initial guess for the controls
+    u_scaling:
+        The scaling for the controls
     U: list[MX | SX]
         The casadi variables for the integration at each node of the phase
     controls: OptimizationVariableContainer
@@ -92,14 +94,20 @@ class NonLinearProgram:
         The initial guess for the states
     X: list[MX | SX]
         The casadi variables for the integration at each node of the phase
+    x_scaling:
+        The scaling for the states
     states: OptimizationVariableContainer
         A list of all the state variables
-    s_bounds = Bounds()
-        The bounds for the stochastic variables
-    s_init = InitialGuess()
-        The initial guess for the stochastic variables
-    S: list[MX | SX]
-        The casadi variables for the stochastic variables
+    a_bounds = Bounds()
+        The bounds for the algebraic_states variables
+    a_init = InitialGuess()
+        The initial guess for the algebraic_states variables
+    a_scaling:
+        The scaling for the algebraic_states variables
+    phase_dynamics: PhaseDynamics
+        The dynamics of the current phase (e.g. SHARED_DURING_PHASE, or ONE_PER_NODE)
+    A: list[MX | SX]
+        The casadi variables for the algebraic_states variables
 
 
     Methods
@@ -113,15 +121,21 @@ class NonLinearProgram:
         Add a new element to the nlp of the format 'nlp.param_name = param' or 'nlp.name["param_name"] = param'
     add_path_condition(ocp: OptimalControlProgram, var: Any, path_name: str, type_option: Any, type_list: Any)
         Interface to add for PathCondition classes
-    def add_casadi_func(self, name: str, function: Callable, *all_param: Any) -> casadi.Function:
+    add_casadi_func(self, name: str, function: Callable, *all_param: Any) -> casadi.Function:
         Add to the pool of declared casadi function. If the function already exists, it is skipped
+    to_casadi_func
+        Converts a symbolic expression into a casadi function
+    mx_to_cx
+        Add to the pool of declared casadi function. If the function already exists, it is skipped
+    node_time(self, node_idx: int)
+        Gives the time for a specific index
     """
 
-    def __init__(self, assume_phase_dynamics):
+    def __init__(self, phase_dynamics: PhaseDynamics):
         self.casadi_func = {}
         self.contact_forces_func = None
         self.soft_contact_forces_func = None
-        self.control_type = ControlType.NONE
+        self.control_type = ControlType.CONSTANT
         self.cx = None
         self.dt = None
         self.dynamics = (
@@ -132,7 +146,7 @@ class NonLinearProgram:
         self.dynamics_func: list = []
         self.implicit_dynamics_func: list = []
         self.dynamics_type = None
-        self.external_forces: list[Any] = []
+        self.external_forces: list[list[Any, ...], ...] | None = None  # nodes x steps that are passed to the model
         self.g = []
         self.g_internal = []
         self.g_implicit = []
@@ -149,8 +163,6 @@ class NonLinearProgram:
         self.plot = {}
         self.plot_mapping = {}
         self.T = None
-        self.t0 = None
-        self.tf = None
         self.variable_mappings = {}
         self.u_bounds = BoundsList()
         self.u_init = InitialGuessList()
@@ -165,19 +177,24 @@ class NonLinearProgram:
         self.X_scaled = None
         self.x_scaling = None
         self.X = None
-        self.s_bounds = BoundsList()
-        self.s_init = InitialGuessList()
-        self.S = None
-        self.S_scaled = None
-        self.s_scaling = None
-        self.assume_phase_dynamics = assume_phase_dynamics
+        self.a_bounds = BoundsList()
+        self.a_init = InitialGuessList()
+        self.A = None
+        self.A_scaled = None
+        self.a_scaling = None
+        self.phase_dynamics = phase_dynamics
+        self.time_index = None
         self.time_cx = None
         self.time_mx = None
-        self.states = OptimizationVariableContainer(assume_phase_dynamics)
-        self.states_dot = OptimizationVariableContainer(assume_phase_dynamics)
-        self.controls = OptimizationVariableContainer(assume_phase_dynamics)
-        self.stochastic_variables = OptimizationVariableContainer(assume_phase_dynamics)
-        self.integrated_values = OptimizationVariableContainer(assume_phase_dynamics)
+        self.dt = None
+        self.dt_mx = None
+        self.tf = None
+        self.tf_mx = None
+        self.states = OptimizationVariableContainer(self.phase_dynamics)
+        self.states_dot = OptimizationVariableContainer(self.phase_dynamics)
+        self.controls = OptimizationVariableContainer(self.phase_dynamics)
+        self.algebraic_states = OptimizationVariableContainer(self.phase_dynamics)
+        self.integrated_values = OptimizationVariableContainer(self.phase_dynamics)
 
     def initialize(self, cx: MX | SX | Callable = None):
         """
@@ -196,13 +213,106 @@ class NonLinearProgram:
         self.g = []
         self.g_internal = []
         self.casadi_func = {}
-        self.time_cx = self.cx.sym(f"time_cx_{self.phase_idx}", 1, 1)
-        self.time_mx = MX.sym(f"time_mx_{self.phase_idx}", 1, 1)
         self.states.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
         self.states_dot.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
         self.controls.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
-        self.stochastic_variables.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
+        self.algebraic_states.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
         self.integrated_values.initialize_from_shooting(n_shooting=self.ns + 1, cx=self.cx)
+
+    @property
+    def n_states_nodes(self) -> int:
+        """
+        Returns
+        -------
+        The number of states
+        """
+        return self.ns + 1
+
+    def n_states_decision_steps(self, node_idx) -> int:
+        """
+        Parameters
+        ----------
+        node_idx: int
+            The index of the node
+
+        Returns
+        -------
+        The number of states
+        """
+        if node_idx >= self.ns:
+            return 1
+        return self.dynamics[node_idx].shape_xf[1] + (1 if self.ode_solver.duplicate_starting_point else 0)
+
+    def n_states_stepwise_steps(self, node_idx) -> int:
+        """
+        Parameters
+        ----------
+        node_idx: int
+            The index of the node
+
+        Returns
+        -------
+        The number of states
+        """
+        if node_idx >= self.ns:
+            return 1
+        return self.dynamics[node_idx].shape_xall[1]
+
+    @property
+    def n_controls_nodes(self) -> int:
+        """
+        Returns
+        -------
+        The number of controls
+        """
+        mod = 1 if self.control_type in (ControlType.LINEAR_CONTINUOUS, ControlType.CONSTANT_WITH_LAST_NODE) else 0
+        return self.ns + mod
+
+    def n_controls_steps(self, node_idx) -> int:
+        """
+        Parameters
+        ----------
+        node_idx: int
+            The index of the node
+
+        Returns
+        -------
+        The number of states
+        """
+
+        if self.control_type == ControlType.CONSTANT:
+            return 1
+        elif self.control_type == ControlType.CONSTANT_WITH_LAST_NODE:
+            return 1
+        elif self.control_type == ControlType.LINEAR_CONTINUOUS:
+            return 2
+        else:
+            raise RuntimeError("Not implemented yet")
+
+    @property
+    def n_algebraic_states_nodes(self) -> int:
+        """
+        Returns
+        -------
+        The number of controls
+        """
+
+        return self.n_states_nodes
+
+    @staticmethod
+    def n_algebraic_states_decision_steps(node_idx) -> int:
+        """
+        Parameters
+        ----------
+        node_idx: int
+            The index of the node
+
+        Returns
+        -------
+        The number of states
+        """
+
+        return 1
 
     @staticmethod
     def add(ocp, param_name: str, param: Any, duplicate_singleton: bool, _type: Any = None, name: str = None):
@@ -323,11 +433,15 @@ class NonLinearProgram:
 
         cx_types = OptimizationVariable, OptimizationVariableList, Parameter, ParameterList
         mx = [var.mx if isinstance(var, cx_types) else var for var in all_param]
-        cx = [
-            var.mapping.to_second.map(var.cx_start) if hasattr(var, "mapping") else var.cx_start
-            for var in all_param
-            if isinstance(var, cx_types)
-        ]
+        cx = []
+        for var in all_param:
+            if hasattr(var, "mapping"):
+                cx += [var.mapping.to_second.map(var.cx_start)]
+            elif hasattr(var, "cx_start"):
+                cx += [var.cx_start]
+            else:
+                cx += [var.cx]  # This is a temporary hack until parameters are included as OptimizationVariables
+
         return NonLinearProgram.to_casadi_func(name, symbolic_expression, *mx)(*cx)
 
     @staticmethod
@@ -382,20 +496,3 @@ class NonLinearProgram:
                 )
 
         return func.expand() if expand else func
-
-    def node_time(self, node_idx: int):
-        """
-        Gives the time for a specific index
-
-        Parameters
-        ----------
-        node_idx: int
-          Index of the node
-
-        Returns
-        -------
-        The time for a specific index
-        """
-        if node_idx < 0 or node_idx > self.ns:
-            return ValueError(f"node_index out of range [0:{self.ns}]")
-        return self.tf / self.ns * node_idx

@@ -19,12 +19,11 @@ from bioptim import (
     DynamicsList,
     DynamicsFcn,
     BiMappingList,
-    SelectionMapping,
-    Dependency,
     BoundsList,
     InitialGuessList,
     OdeSolver,
     Solver,
+    SolutionMerge,
 )
 
 
@@ -51,7 +50,7 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, ode_solver
         with_excitations=True,
         with_residual_torque=True,
         with_contact=True,
-        expand=expand_dynamics,
+        expand_dynamics=expand_dynamics,
     )
 
     # Constraints
@@ -115,7 +114,6 @@ def prepare_ocp(biorbd_model_path, phase_time, n_shooting, min_bound, ode_solver
         constraints=constraints,
         variable_mappings=dof_mapping,
         ode_solver=ode_solver,
-        assume_phase_dynamics=True,
     )
 
 
@@ -131,11 +129,14 @@ def main():
     nlp = ocp.nlp[0]
     nlp.model = BiorbdModel(biorbd_model_path)
 
-    q = sol.states["q"]
-    qdot = sol.states["qdot"]
-    activations = sol.states["muscles"]
-    tau = sol.controls["tau"]
-    excitations = sol.controls["muscles"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+
+    q = states["q"]
+    qdot = states["qdot"]
+    activations = states["muscles"]
+    tau = controls["tau"]
+    excitations = controls["muscles"]
 
     x = np.concatenate((q, qdot, activations))
     u = np.concatenate((tau, excitations))

@@ -13,6 +13,8 @@ from bioptim import (
     BoundsList,
     ObjectiveFcn,
     BiMappingList,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 
@@ -20,7 +22,7 @@ def prepare_ocp(
     biorbd_model_path: str = "models/triple_pendulum.bioMod",
     biorbd_model_path_modified_inertia: str = "models/triple_pendulum_modified_inertia.bioMod",
     n_shooting: int = 40,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     # Adding the models to the same phase
@@ -42,7 +44,7 @@ def prepare_ocp(
 
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, with_contact=False, expand=expand_dynamics)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -70,7 +72,6 @@ def prepare_ocp(
         u_bounds=u_bounds,
         objective_functions=objective_functions,
         variable_mappings=tau_mappings,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -87,7 +88,8 @@ def main():
     # --- Show results --- #
     show_solution_animation = False
     if show_solution_animation:
-        q = sol.states["q"]
+        states = sol.decision_states(to_merge=SolutionMerge.NODES)
+        q = states["q"]
         import bioviz
 
         b = bioviz.Viz("models/triple_pendulum_both_inertia.bioMod")

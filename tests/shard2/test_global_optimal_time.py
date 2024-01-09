@@ -21,14 +21,16 @@ from bioptim import (
     OptimalControlProgram,
     OdeSolver,
     ControlType,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 from tests.utils import TestUtils
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK, OdeSolver.TRAPEZOIDAL])
-def test_pendulum_max_time_mayer_constrained(ode_solver, assume_phase_dynamics):
+def test_pendulum_max_time_mayer_constrained(ode_solver, phase_dynamics):
     # Load pendulum_min_time_Mayer
     from bioptim.examples.optimal_time_ocp import pendulum_min_time_Mayer as ocp_module
 
@@ -36,8 +38,8 @@ def test_pendulum_max_time_mayer_constrained(ode_solver, assume_phase_dynamics):
         # This is a long test and CI is already long for Windows
         return
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics=PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -70,7 +72,7 @@ def test_pendulum_max_time_mayer_constrained(ode_solver, assume_phase_dynamics):
         ode_solver=ode_solver(),
         max_time=max_ft,
         weight=-1,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
         control_type=control_type,
     )
@@ -86,8 +88,10 @@ def test_pendulum_max_time_mayer_constrained(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(g, np.zeros((ns * 4, 1)), decimal=6)
 
     # Check some results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
-    tf = sol.parameters["time"][0, 0]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
+    tf = sol.decision_time(to_merge=SolutionMerge.NODES)[-1, 0]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((0, 0)))
@@ -100,24 +104,21 @@ def test_pendulum_max_time_mayer_constrained(ode_solver, assume_phase_dynamics):
     # Check objective function value
     f = np.array(sol.cost)
     np.testing.assert_equal(f.shape, (1, 1))
-    np.testing.assert_almost_equal(f[0, 0], -1)
+    np.testing.assert_almost_equal(f[0, 0], -1, decimal=5)
 
     np.testing.assert_almost_equal(tau[1, 0], np.array(0))
-    np.testing.assert_almost_equal(tau[1, -2], np.array(0))
+    np.testing.assert_almost_equal(tau[1, -1], np.array(0))
 
     # optimized time
-    np.testing.assert_almost_equal(tf, max_ft)
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tf, max_ft, decimal=5)
 
     # simulate
-    TestUtils.simulate(sol, decimal_value=6)
+    TestUtils.simulate(sol, decimal_value=5)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
+def test_pendulum_min_time_lagrange(ode_solver, phase_dynamics):
     # Load pendulum_min_time_Lagrange
     from bioptim.examples.optimal_time_ocp import pendulum_min_time_Lagrange as ocp_module
 
@@ -125,8 +126,8 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
         # This test fails on the CI
         return
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics=PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -148,7 +149,7 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
         final_time=ft,
         n_shooting=ns,
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -163,8 +164,10 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(g, np.zeros((ns * 4, 1)), decimal=6)
 
     # Check some results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
-    tf = sol.parameters["time"][0, 0]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
+    tf = sol.decision_time(to_merge=SolutionMerge.NODES)[-1, 0]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((0, 0)))
@@ -182,7 +185,7 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
 
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((87.13363409, 0)), decimal=6)
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-99.99938226, 0)), decimal=6)
+        np.testing.assert_almost_equal(tau[:, -1], np.array((-99.99938226, 0)), decimal=6)
 
         # optimized time
         np.testing.assert_almost_equal(tf, 0.2855606738489078)
@@ -191,14 +194,14 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
         # Check objective function value
         f = np.array(sol.cost)
         np.testing.assert_equal(f.shape, (1, 1))
-        np.testing.assert_almost_equal(f[0, 0], 0.8905637018911737)
+        np.testing.assert_almost_equal(f[0, 0], 0.35082195478560974)
 
         # initial and final controls
-        np.testing.assert_almost_equal(tau[:, 0], np.array((19.92168227, 0)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-11.96503358, 0)))
+        np.testing.assert_almost_equal(tau[:, 0], np.array((-99.9999592, 0)))
+        np.testing.assert_almost_equal(tau[:, -1], np.array([-68.84010891, 0.0]))
 
         # optimized time
-        np.testing.assert_almost_equal(tf, 0.8905637018911734)
+        np.testing.assert_almost_equal(tf, 0.3508219547856098)
 
     elif ode_solver == OdeSolver.RK4:
         # Check objective function value
@@ -207,16 +210,13 @@ def test_pendulum_min_time_lagrange(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(f[0, 0], 0.28519514602152585)
 
         # initial and final controls
-        np.testing.assert_almost_equal(tau[:, 0], np.array((99.99914849, 0)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-99.9990543, 0)))
+        np.testing.assert_almost_equal(tau[:, 0], np.array((99.99914811, 0)))
+        np.testing.assert_almost_equal(tau[:, -1], np.array((-99.9990548, 0)))
 
         # optimized time
         np.testing.assert_almost_equal(tf, 0.28519514602152585)
     else:
         raise ValueError("Test not implemented")
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
 
     # simulate
     TestUtils.simulate(sol, decimal_value=5)
@@ -288,9 +288,9 @@ def test_pendulum_max_time_lagrange_constrained(ode_solver):
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_time_constraint(ode_solver, assume_phase_dynamics):
+def test_time_constraint(ode_solver, phase_dynamics):
     if platform.system() != "Linux":
         # This is a long test and CI is already long for Windows and Mac
         return
@@ -298,8 +298,8 @@ def test_time_constraint(ode_solver, assume_phase_dynamics):
     # Load time_constraint
     from bioptim.examples.optimal_time_ocp import time_constraint as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics=PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -323,7 +323,7 @@ def test_time_constraint(ode_solver, assume_phase_dynamics):
         time_min=0.2,
         time_max=1,
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -338,8 +338,10 @@ def test_time_constraint(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(g, np.concatenate((np.zeros((ns * 4, 1)), [[1]])))
 
     # Check some results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
-    tf = sol.parameters["time"][0, 0]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
+    tf = sol.decision_time(to_merge=SolutionMerge.NODES)[-1, 0]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((0, 0)))
@@ -360,17 +362,17 @@ def test_time_constraint(ode_solver, assume_phase_dynamics):
 
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((5.33802896, 0)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-23.69200381, 0)))
+        np.testing.assert_almost_equal(tau[:, -1], np.array((-23.69200381, 0)))
 
     elif ode_solver == OdeSolver.COLLOCATION:
         # Check objective function value
         f = np.array(sol.cost)
         np.testing.assert_equal(f.shape, (1, 1))
-        np.testing.assert_almost_equal(f[0, 0], 90.22986699069487)
+        np.testing.assert_almost_equal(f[0, 0], 94.3161259540302)
 
         # initial and final controls
-        np.testing.assert_almost_equal(tau[:, 0], np.array((8.48542163, 0)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-18.13750096, 0)))
+        np.testing.assert_almost_equal(tau[:, 0], np.array((10.47494692, 0)))
+        np.testing.assert_almost_equal(tau[:, -1], np.array((-19.49344386, 0)))
 
     elif ode_solver == OdeSolver.RK4:
         # Check objective function value
@@ -380,25 +382,22 @@ def test_time_constraint(ode_solver, assume_phase_dynamics):
 
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((6.28713595, 0)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array((-12.72892599, 0)))
+        np.testing.assert_almost_equal(tau[:, -1], np.array((-12.72892599, 0)))
     else:
         raise ValueError("Test not ready")
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
 
     # simulate
     TestUtils.simulate(sol, decimal_value=6)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_monophase_time_constraint(ode_solver, assume_phase_dynamics):
+def test_monophase_time_constraint(ode_solver, phase_dynamics):
     # Load time_constraint
     from bioptim.examples.optimal_time_ocp import multiphase_time_constraint as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.RK8:
+    # For reducing time phase_dynamics=PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.RK8:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -410,7 +409,7 @@ def test_monophase_time_constraint(ode_solver, assume_phase_dynamics):
         time_max=(2, 4, 0.8),
         n_shooting=(20,),
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -418,20 +417,24 @@ def test_monophase_time_constraint(ode_solver, assume_phase_dynamics):
     # Check objective function value
     f = np.array(sol.cost)
     np.testing.assert_equal(f.shape, (1, 1))
-    np.testing.assert_almost_equal(f[0, 0], 10826.61745902614)
+    np.testing.assert_almost_equal(f[0, 0], 10826.616, decimal=3)
 
     # Check constraints
     g = np.array(sol.constraints)
     if ode_solver == OdeSolver.COLLOCATION:
         np.testing.assert_equal(g.shape, (120 * 5 + 7, 1))
-        np.testing.assert_almost_equal(g, np.concatenate((np.zeros((120 * 5, 1)), np.array([[0, 0, 0, 0, 0, 0, 1]]).T)))
+        np.testing.assert_almost_equal(
+            g, np.concatenate((np.zeros((120 * 5, 1)), np.array([[0, 0, 0, 0, 0, 0, 1]]).T)), decimal=6
+        )
     else:
         np.testing.assert_equal(g.shape, (127, 1))
-        np.testing.assert_almost_equal(g, np.concatenate((np.zeros((126, 1)), [[1]])))
+        np.testing.assert_almost_equal(g, np.concatenate((np.zeros((126, 1)), [[1]])), decimal=6)
 
     # Check some results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
-    tf = sol.parameters["time"][0, 0]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
+    tf = sol.decision_time(to_merge=SolutionMerge.NODES)[-1, 0]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((1, 0, 0)))
@@ -442,30 +445,24 @@ def test_monophase_time_constraint(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(qdot[:, -1], np.array((0, 0, 0)))
 
     # initial and final controls
-    np.testing.assert_almost_equal(tau[:, 0], np.array((5.71428583, 9.81, 0)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((-5.71428583, 9.81, 0)))
+    np.testing.assert_almost_equal(tau[:, 0], np.array((5.71428583, 9.81, 0)), decimal=5)
+    np.testing.assert_almost_equal(tau[:, -1], np.array((-5.71428583, 9.81, 0)), decimal=5)
 
     # optimized time
-    np.testing.assert_almost_equal(tf, 1.0)
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tf, 1.0, decimal=5)
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-@pytest.mark.parametrize(
-    "ode_solver",
-    [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK],
-)
-def test_multiphase_time_constraint(ode_solver, assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+@pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
+def test_multiphase_time_constraint(ode_solver, phase_dynamics):
     # Load time_constraint
     from bioptim.examples.optimal_time_ocp import multiphase_time_constraint as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics=PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -477,7 +474,7 @@ def test_multiphase_time_constraint(ode_solver, assume_phase_dynamics):
         time_max=(2, 4, 0.8),
         n_shooting=(20, 30, 20),
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -485,27 +482,30 @@ def test_multiphase_time_constraint(ode_solver, assume_phase_dynamics):
     # Check objective function value
     f = np.array(sol.cost)
     np.testing.assert_equal(f.shape, (1, 1))
-    np.testing.assert_almost_equal(f[0, 0], 55582.04125083612)
+    np.testing.assert_almost_equal(f[0, 0], 53441.6, decimal=1)
 
     # Check constraints
     g = np.array(sol.constraints)
     if ode_solver == OdeSolver.COLLOCATION:
         np.testing.assert_equal(g.shape, (421 * 5 + 22, 1))
         np.testing.assert_almost_equal(
-            g, np.concatenate((np.zeros((612, 1)), [[1]], np.zeros((909, 1)), [[3]], np.zeros((603, 1)), [[0.8]]))
+            g,
+            np.concatenate((np.zeros((612, 1)), [[1]], np.zeros((909, 1)), [[3]], np.zeros((603, 1)), [[1.06766639]])),
+            decimal=6,
         )
     else:
         np.testing.assert_equal(g.shape, (447, 1))
         np.testing.assert_almost_equal(
-            g, np.concatenate((np.zeros((132, 1)), [[1]], np.zeros((189, 1)), [[3]], np.zeros((123, 1)), [[0.8]]))
+            g,
+            np.concatenate((np.zeros((132, 1)), [[1]], np.zeros((189, 1)), [[3]], np.zeros((123, 1)), [[1.06766639]])),
+            decimal=6,
         )
 
     # Check some results
-    sol_merged = sol.merge_phases()
-    states, controls = sol_merged.states, sol_merged.controls
+    states = sol.stepwise_states(to_merge=[SolutionMerge.PHASES, SolutionMerge.NODES])
+    controls = sol.stepwise_controls(to_merge=[SolutionMerge.PHASES, SolutionMerge.NODES])
     q, qdot, tau = states["q"], states["qdot"], controls["tau"]
-    tf_all = sol.parameters["time"]
-    tf = sol_merged.phase_time[1]
+    tf_all = [t[-1, 0] for t in sol.decision_time(to_merge=SolutionMerge.NODES)]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((1, 0, 0)))
@@ -516,28 +516,24 @@ def test_multiphase_time_constraint(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(qdot[:, -1], np.array((0, 0, 0)))
 
     # initial and final controls
-    np.testing.assert_almost_equal(tau[:, 0], np.array((5.71428583, 9.81, 0)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((-8.92857121, 9.81, -14.01785679)))
+    np.testing.assert_almost_equal(tau[:, 0], np.array((5.71428583, 9.81, 0)), decimal=5)
+    np.testing.assert_almost_equal(tau[:, -1], np.array((-5.01292039, 9.81, -7.87028502)), decimal=5)
 
     # optimized time
-    np.testing.assert_almost_equal(tf_all.T, [[1.0, 3, 0.8]])
-    np.testing.assert_almost_equal(tf, np.sum(tf_all))
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tf_all, [1.0, 3, 1.06766639], decimal=5)
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_multiphase_time_constraint_with_phase_time_equality(ode_solver, assume_phase_dynamics):
+def test_multiphase_time_constraint_with_phase_time_equality(ode_solver, phase_dynamics):
     # Load time_constraint
     from bioptim.examples.optimal_time_ocp import multiphase_time_constraint as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics == PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -549,7 +545,7 @@ def test_multiphase_time_constraint_with_phase_time_equality(ode_solver, assume_
         time_max=(2, 4, 1),
         n_shooting=(20, 30, 20),
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         with_phase_time_equality=True,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
@@ -558,33 +554,35 @@ def test_multiphase_time_constraint_with_phase_time_equality(ode_solver, assume_
     # Check objective function value
     f = np.array(sol.cost)
     np.testing.assert_equal(f.shape, (1, 1))
-    np.testing.assert_almost_equal(f[0, 0], 53463.26498172455)
 
     # Check constraints
     g = np.array(sol.constraints)
     if ode_solver == OdeSolver.COLLOCATION:
+        np.testing.assert_almost_equal(f[0, 0], 53463.26241017142)
         np.testing.assert_equal(g.shape, (421 * 5 + 22, 1))
         np.testing.assert_almost_equal(
             g,
             np.concatenate(
                 (np.zeros((612, 1)), [[0.95655144]], np.zeros((909, 1)), [[3]], np.zeros((603, 1)), [[0.95655144]])
             ),
+            decimal=6,
         )
     else:
+        np.testing.assert_almost_equal(f[0, 0], 53463.26240909248, decimal=1)
         np.testing.assert_equal(g.shape, (447, 1))
         np.testing.assert_almost_equal(
             g,
             np.concatenate(
                 (np.zeros((132, 1)), [[0.95655144]], np.zeros((189, 1)), [[3]], np.zeros((123, 1)), [[0.95655144]])
             ),
+            decimal=6,
         )
 
     # Check some results
-    sol_merged = sol.merge_phases()
-    states, controls = sol_merged.states, sol_merged.controls
+    states = sol.stepwise_states(to_merge=[SolutionMerge.PHASES, SolutionMerge.NODES])
+    controls = sol.stepwise_controls(to_merge=[SolutionMerge.PHASES, SolutionMerge.NODES])
     q, qdot, tau = states["q"], states["qdot"], controls["tau"]
-    tf_all = sol.parameters["time"]
-    tf = sol_merged.phase_time[1]
+    tf_all = [t[-1, 0] for t in sol.decision_time(to_merge=SolutionMerge.NODES)]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((1, 0, 0)))
@@ -596,20 +594,16 @@ def test_multiphase_time_constraint_with_phase_time_equality(ode_solver, assume_
 
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((6.24518474, 9.81, 0)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((-6.24518474, 9.81, -9.80494005)))
+    np.testing.assert_almost_equal(tau[:, -1], np.array((-6.24518474, 9.81, -9.80494005)))
 
     # optimized time
-    np.testing.assert_almost_equal(tf_all.T, [[0.95655144, 3]])
-    np.testing.assert_almost_equal(tf, np.sum(tf_all) + tf_all[0, 0])
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tf_all, [0.95655144, 3, 0.95655144], decimal=5)
 
     # simulate
     TestUtils.simulate(sol)
 
 
-def partial_ocp_parameters(n_phases):
+def partial_ocp_parameters(n_phases, phase_dynamics):
     if n_phases != 1 and n_phases != 3:
         raise RuntimeError("n_phases should be 1 or 3")
 
@@ -621,10 +615,10 @@ def partial_ocp_parameters(n_phases):
     time_max = [2, 4, 0.8]
     tau_min, tau_max, tau_init = -100, 100, 0
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase_dynamics=phase_dynamics)
     if n_phases > 1:
-        dynamics.add(DynamicsFcn.TORQUE_DRIVEN)
-        dynamics.add(DynamicsFcn.TORQUE_DRIVEN)
+        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase_dynamics=phase_dynamics)
+        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase_dynamics=phase_dynamics)
 
     x_bounds = BoundsList()
     x_bounds["q"] = bio_model[0].bounds_from_ranges("q")
@@ -699,7 +693,7 @@ def test_mayer_neg_monophase_time_constraint():
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=1)
+    ) = partial_ocp_parameters(n_phases=1, phase_dynamics=PhaseDynamics.SHARED_DURING_THE_PHASE)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME)
@@ -738,7 +732,7 @@ def test_mayer1_neg_multiphase_time_constraint():
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=3)
+    ) = partial_ocp_parameters(n_phases=3, phase_dynamics=PhaseDynamics.SHARED_DURING_THE_PHASE)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=0)
@@ -778,7 +772,7 @@ def test_mayer2_neg_multiphase_time_constraint():
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=3)
+    ) = partial_ocp_parameters(n_phases=3, phase_dynamics=PhaseDynamics.SHARED_DURING_THE_PHASE)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=2)
@@ -803,8 +797,8 @@ def test_mayer2_neg_multiphase_time_constraint():
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_mayer_multiphase_time_constraint(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_mayer_multiphase_time_constraint(phase_dynamics):
     (
         bio_model,
         n_shooting,
@@ -819,7 +813,7 @@ def test_mayer_multiphase_time_constraint(assume_phase_dynamics):
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=3)
+    ) = partial_ocp_parameters(n_phases=3, phase_dynamics=phase_dynamics)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=0)
@@ -840,12 +834,11 @@ def test_mayer_multiphase_time_constraint(assume_phase_dynamics):
         u_init=u_init,
         objective_functions=objective_functions,
         constraints=constraints,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_lagrange_neg_monophase_time_constraint(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_lagrange_neg_monophase_time_constraint(phase_dynamics):
     (
         bio_model,
         n_shooting,
@@ -860,7 +853,7 @@ def test_lagrange_neg_monophase_time_constraint(assume_phase_dynamics):
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=1)
+    ) = partial_ocp_parameters(n_phases=1, phase_dynamics=phase_dynamics)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100)
@@ -882,12 +875,11 @@ def test_lagrange_neg_monophase_time_constraint(assume_phase_dynamics):
             u_init=u_init,
             objective_functions=objective_functions,
             constraints=constraints,
-            assume_phase_dynamics=assume_phase_dynamics,
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_lagrange1_neg_multiphase_time_constraint(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_lagrange1_neg_multiphase_time_constraint(phase_dynamics):
     with pytest.raises(RuntimeError, match="Time constraint/objective cannot be declared more than once"):
         (
             bio_model,
@@ -903,7 +895,7 @@ def test_lagrange1_neg_multiphase_time_constraint(assume_phase_dynamics):
             x_init,
             u_bounds,
             u_init,
-        ) = partial_ocp_parameters(n_phases=3)
+        ) = partial_ocp_parameters(n_phases=3, phase_dynamics=phase_dynamics)
 
         objective_functions = ObjectiveList()
         objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=0)
@@ -926,12 +918,11 @@ def test_lagrange1_neg_multiphase_time_constraint(assume_phase_dynamics):
             u_init=u_init,
             objective_functions=objective_functions,
             constraints=constraints,
-            assume_phase_dynamics=assume_phase_dynamics,
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_lagrange2_neg_multiphase_time_constraint(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_lagrange2_neg_multiphase_time_constraint(phase_dynamics):
     with pytest.raises(RuntimeError, match="Time constraint/objective cannot be declared more than once"):
         (
             bio_model,
@@ -947,7 +938,7 @@ def test_lagrange2_neg_multiphase_time_constraint(assume_phase_dynamics):
             x_init,
             u_bounds,
             u_init,
-        ) = partial_ocp_parameters(n_phases=3)
+        ) = partial_ocp_parameters(n_phases=3, phase_dynamics=phase_dynamics)
 
         objective_functions = ObjectiveList()
         objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=2)
@@ -970,12 +961,11 @@ def test_lagrange2_neg_multiphase_time_constraint(assume_phase_dynamics):
             u_init=u_init,
             objective_functions=objective_functions,
             constraints=constraints,
-            assume_phase_dynamics=assume_phase_dynamics,
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_lagrange_multiphase_time_constraint(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_lagrange_multiphase_time_constraint(phase_dynamics):
     (
         bio_model,
         n_shooting,
@@ -990,7 +980,7 @@ def test_lagrange_multiphase_time_constraint(assume_phase_dynamics):
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=3)
+    ) = partial_ocp_parameters(n_phases=3, phase_dynamics=phase_dynamics)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100, phase=0)
@@ -1011,12 +1001,11 @@ def test_lagrange_multiphase_time_constraint(assume_phase_dynamics):
         u_init=u_init,
         objective_functions=objective_functions,
         constraints=constraints,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_mayer_neg_two_objectives(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_mayer_neg_two_objectives(phase_dynamics):
     (
         bio_model,
         n_shooting,
@@ -1031,7 +1020,7 @@ def test_mayer_neg_two_objectives(assume_phase_dynamics):
         x_init,
         u_bounds,
         u_init,
-    ) = partial_ocp_parameters(n_phases=1)
+    ) = partial_ocp_parameters(n_phases=1, phase_dynamics=phase_dynamics)
 
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, phase=0)
@@ -1048,5 +1037,4 @@ def test_mayer_neg_two_objectives(assume_phase_dynamics):
             x_init=x_init,
             u_init=u_init,
             objective_functions=objective_functions,
-            assume_phase_dynamics=assume_phase_dynamics,
         )

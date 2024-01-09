@@ -1,11 +1,12 @@
 import os
+
 import numpy as np
-from bioptim import OdeSolver
+from bioptim import OdeSolver, PhaseDynamics, SolutionMerge
 import pytest
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_soft_contact(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_soft_contact(phase_dynamics):
     from bioptim.examples.torque_driven_ocp import example_soft_contact as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -16,10 +17,10 @@ def test_soft_contact(assume_phase_dynamics):
         biorbd_model_path=bioptim_folder + "/models/soft_contact_sphere.bioMod",
         final_time=0.37,
         n_shooting=37,
-        n_threads=8 if assume_phase_dynamics else 1,
+        n_threads=8 if phase_dynamics == PhaseDynamics.SHARED_DURING_THE_PHASE else 1,
         use_sx=False,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
 
     ocp.print(to_console=True, to_graph=False)
@@ -39,7 +40,8 @@ def test_soft_contact(assume_phase_dynamics):
     np.testing.assert_almost_equal(g, np.zeros((228, 1)))
 
     # Check some of the results
-    states, controls = sol.states, sol.controls
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
     q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
@@ -52,4 +54,4 @@ def test_soft_contact(assume_phase_dynamics):
 
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array([-0.16347455, 0.02123226, -13.25955361]))
-    np.testing.assert_almost_equal(tau[:, -2], np.array([0.00862357, -0.00298151, -0.16425701]))
+    np.testing.assert_almost_equal(tau[:, -1], np.array([0.00862357, -0.00298151, -0.16425701]))

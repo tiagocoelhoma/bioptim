@@ -14,6 +14,8 @@ from bioptim import (
     ObjectiveFcn,
     OptimalControlProgram,
     InitialGuessList,
+    PhaseDynamics,
+    SolutionMerge,
 )
 from bioptim.limits.path_conditions import InitialGuess
 
@@ -133,8 +135,8 @@ def test_initial_guess_spline():
         np.testing.assert_almost_equal(init.init.evaluate_at(t), expected_val)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_initial_guess_update(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_initial_guess_update(phase_dynamics):
     # Load pendulum
     from bioptim.examples.optimal_time_ocp import pendulum_min_time_Mayer as ocp_module
 
@@ -144,7 +146,7 @@ def test_initial_guess_update(assume_phase_dynamics):
         biorbd_model_path=bioptim_folder + "/models/pendulum.bioMod",
         final_time=2,
         n_shooting=10,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=True,
     )
 
@@ -152,24 +154,29 @@ def test_initial_guess_update(assume_phase_dynamics):
     np.testing.assert_almost_equal(ocp.nlp[0].x_init["qdot"].init, np.zeros((2, 1)))
     np.testing.assert_almost_equal(ocp.nlp[0].u_init["tau"].init, np.zeros((2, 1)))
 
-    np.testing.assert_almost_equal(ocp.parameter_init["time"].init[0, 0], 2)
-    np.testing.assert_almost_equal(ocp.init_vector, np.concatenate((np.zeros((4 * 11 + 2 * 10, 1)), [[2]])))
+    np.testing.assert_almost_equal(ocp.phase_time[0], 2)
+    np.testing.assert_almost_equal(
+        ocp.init_vector,
+        np.concatenate(
+            (
+                [[0.2]],
+                np.zeros((4 * 11 + 2 * 10, 1)),
+            )
+        ),
+    )
 
     new_x_init = InitialGuessList()
     new_x_init["q"] = [1] * 2
     new_x_init["qdot"] = [1] * 2
     new_u_init = InitialGuessList()
     new_u_init["tau"] = [3] * 2
-    new_time_init = InitialGuessList()
-    new_time_init["time"] = [4]
 
-    ocp.update_initial_guess(x_init=new_x_init, u_init=new_u_init, parameter_init=new_time_init)
+    ocp.update_initial_guess(x_init=new_x_init, u_init=new_u_init)
 
     np.testing.assert_almost_equal(ocp.nlp[0].x_init["q"].init, np.ones((2, 1)))
     np.testing.assert_almost_equal(ocp.nlp[0].x_init["qdot"].init, np.ones((2, 1)))
     np.testing.assert_almost_equal(ocp.nlp[0].u_init["tau"].init, np.ones((2, 1)) * 3)
-    np.testing.assert_almost_equal(ocp.parameter_init["time"].init[0, 0], 4)
-    np.testing.assert_almost_equal(ocp.init_vector, np.array([[1, 1, 1, 1] * 11 + [3, 3] * 10 + [4]]).T)
+    np.testing.assert_almost_equal(ocp.init_vector, np.array([[0.2] + [1, 1, 1, 1] * 11 + [3, 3] * 10]).T)
 
 
 def test_initial_guess_custom():
@@ -195,20 +202,23 @@ def test_initial_guess_custom():
         np.testing.assert_almost_equal(init.init.evaluate_at(i), expected_val)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_simulate_from_initial_multiple_shoot(assume_phase_dynamics):
-    from bioptim.examples.getting_started import example_save_and_load as ocp_module
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_simulate_from_initial_multiple_shoot(phase_dynamics):
+    from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
+    final_time = 2
+    n_shooting = 10
 
     ocp = ocp_module.prepare_ocp(
         biorbd_model_path=bioptim_folder + "/models/pendulum.bioMod",
-        final_time=2,
-        n_shooting=10,
-        n_threads=4 if assume_phase_dynamics else 1,
-        assume_phase_dynamics=assume_phase_dynamics,
+        final_time=final_time,
+        n_shooting=n_shooting,
+        n_threads=4 if phase_dynamics == PhaseDynamics.SHARED_DURING_THE_PHASE else 1,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=True,
     )
+    phases_dt = np.array([final_time / n_shooting])
     X = InitialGuessList()
     X["q"] = [-1, -2]
     X["qdot"] = [1, 0.5]
@@ -217,44 +227,46 @@ def test_simulate_from_initial_multiple_shoot(assume_phase_dynamics):
     P = InitialGuessList()
     S = InitialGuessList()
 
-    sol = Solution(ocp, [X, U, P, S])
-    controls = sol.controls
-    sol = sol.integrate(
-        shooting_type=Shooting.MULTIPLE, keep_intermediate_points=True, integrator=SolutionIntegrator.OCP
+    sol = Solution.from_initial_guess(ocp, [phases_dt, X, U, P, S])
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    states = sol.integrate(
+        shooting_type=Shooting.MULTIPLE, integrator=SolutionIntegrator.OCP, to_merge=SolutionMerge.NODES
     )
-    states = sol.states
 
     # Check some of the results
     q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((-1.0, -2.0)))
-    np.testing.assert_almost_equal(q[:, -2], np.array((-0.7553692, -1.6579819)))
+    np.testing.assert_almost_equal(q[:, -2], np.array([-0.75310861, -1.65299482]))
 
     # initial and final velocities
     np.testing.assert_almost_equal(qdot[:, 0], np.array((1.0, 0.5)))
-    np.testing.assert_almost_equal(qdot[:, -2], np.array((1.05240919, 2.864199)))
+    np.testing.assert_almost_equal(qdot[:, -2], np.array([1.06121162, 2.91187814]))
 
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((-0.1, 0.0)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((0.89, 1.8)))
+    np.testing.assert_almost_equal(tau[:, -1], np.array((1, 2)))
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_simulate_from_initial_single_shoot(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_simulate_from_initial_single_shoot(phase_dynamics):
     # Load pendulum
-    from bioptim.examples.getting_started import example_save_and_load as ocp_module
+    from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
+    final_time = 2
+    n_shooting = 10
 
     ocp = ocp_module.prepare_ocp(
         biorbd_model_path=bioptim_folder + "/models/pendulum.bioMod",
-        final_time=2,
-        n_shooting=10,
-        n_threads=4 if assume_phase_dynamics else 1,
-        assume_phase_dynamics=assume_phase_dynamics,
+        final_time=final_time,
+        n_shooting=n_shooting,
+        n_threads=4 if phase_dynamics == PhaseDynamics.SHARED_DURING_THE_PHASE else 1,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=True,
     )
+    phases_dt = np.array([final_time / n_shooting])
     X = InitialGuessList()
     X["q"] = [-1, -2]
     X["qdot"] = [0.1, 0.2]
@@ -263,31 +275,30 @@ def test_simulate_from_initial_single_shoot(assume_phase_dynamics):
     P = InitialGuessList()
     S = InitialGuessList()
 
-    sol = Solution(ocp, [X, U, P, S])
-    sol_integrated = sol.integrate(
-        shooting_type=Shooting.SINGLE, keep_intermediate_points=True, integrator=SolutionIntegrator.OCP
+    sol = Solution.from_initial_guess(ocp, [phases_dt, X, U, P, S])
+    states = sol.integrate(
+        shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP, to_merge=SolutionMerge.NODES
     )
 
     # Check some of the results
-    states = sol_integrated.states
-    controls = sol.controls
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
     q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((-1.0, -2.0)))
-    np.testing.assert_almost_equal(q[:, -1], np.array((-0.33208579, 0.06094747)))
+    np.testing.assert_almost_equal(q[:, -1], np.array([-0.48327558, 0.40051344]))
 
     # initial and final velocities
     np.testing.assert_almost_equal(qdot[:, 0], np.array((0.1, 0.2)))
-    np.testing.assert_almost_equal(qdot[:, -1], np.array((-4.43192682, 6.38146735)))
+    np.testing.assert_almost_equal(qdot[:, -1], np.array([1.05637442, 0.87221644]))
 
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((-0.1, 0.0)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((0.89, 1.8)))
+    np.testing.assert_almost_equal(tau[:, -1], np.array((1, 2)))
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_initial_guess_error_messages(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_initial_guess_error_messages(phase_dynamics):
     """
     This tests that the error messages are properly raised. The OCP is adapted from the getting_started/pendulum.py example.
     """
@@ -302,7 +313,7 @@ def test_initial_guess_error_messages(assume_phase_dynamics):
     objective_functions = Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau")
 
     # Dynamics
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN)
+    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, phase_dynamics=phase_dynamics)
 
     # check the error messages
     with pytest.raises(RuntimeError, match="x_init should be built from a InitialGuessList"):
@@ -313,7 +324,6 @@ def test_initial_guess_error_messages(assume_phase_dynamics):
             phase_time=1,
             x_init=1,
             objective_functions=objective_functions,
-            assume_phase_dynamics=assume_phase_dynamics,
         )
     with pytest.raises(RuntimeError, match="u_init should be built from a InitialGuessList"):
         OptimalControlProgram(
@@ -323,5 +333,4 @@ def test_initial_guess_error_messages(assume_phase_dynamics):
             phase_time=1,
             u_init=1,
             objective_functions=objective_functions,
-            assume_phase_dynamics=assume_phase_dynamics,
         )

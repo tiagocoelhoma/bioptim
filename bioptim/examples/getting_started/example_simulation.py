@@ -6,7 +6,7 @@ The main goal of this kind of simulation is to get a sens of the initial guesses
 The second part of the example is to actually solve the program and then simulate the results from this solution.
 The main goal of this kind of simulation, especially in single shooting (that is not resetting the states at each node)
 is to validate the dynamics of multiple shooting. If they both are equal, it usually means that a great confidence
-can be held in the solution. Another goal would be to reload fast a previously saved optimized solution
+can be held in the solution.
 """
 
 from bioptim import InitialGuess, Solution, Shooting, InterpolationType, SolutionIntegrator
@@ -27,7 +27,7 @@ def main():
     X = InitialGuess([0, 0, 0, 0])
     U = InitialGuess([-1, 1])
 
-    sol_from_initial_guess = Solution(ocp, [X, U])
+    sol_from_initial_guess = Solution.from_initial_guess(ocp, [X, U])
     s = sol_from_initial_guess.integrate(shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP)
     print(f"Final position of q from single shooting of initial guess = {s.states['q'][:, -1]}")
     # Uncomment the next line to animate the integration
@@ -37,7 +37,7 @@ def main():
     U = np.random.rand(2, 31)
     U = InitialGuess(U, interpolation=InterpolationType.EACH_FRAME)
 
-    sol_from_initial_guess = Solution(ocp, [X, U])
+    sol_from_initial_guess = Solution.from_initial_guess(ocp, [X, U])
     s = sol_from_initial_guess.integrate(shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP)
     print(f"Final position of q from single shooting of initial guess = {s.states['q'][:, -1]}")
     # Uncomment the next line to animate the integration

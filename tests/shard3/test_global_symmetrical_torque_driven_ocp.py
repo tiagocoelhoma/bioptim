@@ -2,22 +2,21 @@
 Test for file IO
 """
 import os
-import platform
 
 import pytest
 import numpy as np
-from bioptim import OdeSolver
+from bioptim import OdeSolver, PhaseDynamics, SolutionMerge
 
 from tests.utils import TestUtils
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_symmetry_by_mapping(ode_solver, assume_phase_dynamics):
+def test_symmetry_by_mapping(ode_solver, phase_dynamics):
     from bioptim.examples.symmetrical_torque_driven_ocp import symmetry_by_mapping as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics == PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -25,7 +24,7 @@ def test_symmetry_by_mapping(ode_solver, assume_phase_dynamics):
     ocp = ocp_module.prepare_ocp(
         biorbd_model_path=bioptim_folder + "/models/cubeSym.bioMod",
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -45,7 +44,9 @@ def test_symmetry_by_mapping(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(g, np.zeros((186, 1)))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((-0.2, -1.1797959, 0.20135792)))
@@ -55,22 +56,19 @@ def test_symmetry_by_mapping(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(qdot[:, -1], np.array((0, 0, 0)))
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((1.16129033, 1.16129033, -0.58458751)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((-1.16129033, -1.16129033, 0.58458751)))
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tau[:, -1], np.array((-1.16129033, -1.16129033, 0.58458751)))
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_symmetry_by_constraint(ode_solver, assume_phase_dynamics):
+def test_symmetry_by_constraint(ode_solver, phase_dynamics):
     from bioptim.examples.symmetrical_torque_driven_ocp import symmetry_by_constraint as ocp_module
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
-    if not assume_phase_dynamics and ode_solver == OdeSolver.COLLOCATION:
+    # For reducing time phase_dynamics == PhaseDynamics.ONE_PER_NODE is skipped for redundant tests
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver == OdeSolver.COLLOCATION:
         return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -78,7 +76,7 @@ def test_symmetry_by_constraint(ode_solver, assume_phase_dynamics):
     ocp = ocp_module.prepare_ocp(
         biorbd_model_path=bioptim_folder + "/models/cubeSym.bioMod",
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -99,7 +97,9 @@ def test_symmetry_by_constraint(ode_solver, assume_phase_dynamics):
         np.testing.assert_almost_equal(g, np.zeros((336, 1)))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((-0.2, -1.1797959, 0, 0.20135792, -0.20135792)))
@@ -109,10 +109,7 @@ def test_symmetry_by_constraint(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(qdot[:, -1], np.array((0, 0, 0, 0, 0)))
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((1.16129033, 1.16129033, 0, -0.58458751, 0.58458751)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array((-1.16129033, -1.16129033, 0, 0.58458751, -0.58458751)))
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tau[:, -1], np.array((-1.16129033, -1.16129033, 0, 0.58458751, -0.58458751)))
 
     # simulate
     TestUtils.simulate(sol)

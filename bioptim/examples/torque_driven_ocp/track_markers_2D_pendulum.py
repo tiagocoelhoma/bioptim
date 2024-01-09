@@ -28,6 +28,8 @@ from bioptim import (
     OdeSolverBase,
     Node,
     Solver,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 # Load track_segment_on_rt
@@ -69,7 +71,7 @@ def prepare_ocp(
     markers_ref: np.ndarray,
     tau_ref: np.ndarray,
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     """
@@ -89,10 +91,11 @@ def prepare_ocp(
         The generalized forces to track
     ode_solver: OdeSolverBase
         The ode solver to use
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     expand_dynamics: bool
         If the dynamics function should be expanded. Please note, this will solve the problem faster, but will slow down
         the declaration of the OCP, so it is a trade-off. Also depending on the solver, it may or may not work
@@ -106,17 +109,17 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(
-        ObjectiveFcn.Lagrange.TRACK_MARKERS,
+        ObjectiveFcn.Mayer.TRACK_MARKERS,
         axes=[Axis.Y, Axis.Z],
         node=Node.ALL,
-        weight=100,
+        weight=0.5,
         target=markers_ref[1:, :, :],
     )
     objective_functions.add(ObjectiveFcn.Lagrange.TRACK_CONTROL, key="tau", target=tau_ref)
 
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -142,7 +145,6 @@ def prepare_ocp(
         u_bounds=u_bounds,
         objective_functions=objective_functions,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -161,7 +163,9 @@ def main():
         biorbd_model_path=biorbd_path, final_time=final_time, n_shooting=n_shooting
     )
     sol = ocp_to_track.solve()
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
     n_q = bio_model.nb_q
     n_marker = bio_model.nb_markers
     x = np.concatenate((q, qdot))
@@ -187,14 +191,14 @@ def main():
 
     ocp.add_plot(
         "Markers plot coordinates",
-        update_function=lambda t, x, u, p: get_markers_pos(x, 0, markers_fun, n_q),
+        update_function=lambda t0, phases_dt, node_idx, x, u, p, a: get_markers_pos(x, 0, markers_fun, n_q),
         linestyle=".-",
         plot_type=PlotType.STEP,
         color=marker_color[0],
     )
     ocp.add_plot(
         "Markers plot coordinates",
-        update_function=lambda t, x, u, p: get_markers_pos(x, 1, markers_fun, n_q),
+        update_function=lambda t0, phases_dt, node_idx, x, u, p, a: get_markers_pos(x, 1, markers_fun, n_q),
         linestyle=".-",
         plot_type=PlotType.STEP,
         color=marker_color[1],
@@ -202,14 +206,14 @@ def main():
 
     ocp.add_plot(
         "Markers plot coordinates",
-        update_function=lambda t, x, u, p: markers_ref[:, 0, :],
+        update_function=lambda t0, phases_dt, node_idx, x, u, p, a: markers_ref[:, 0, :],
         plot_type=PlotType.PLOT,
         color=marker_color[0],
         legend=title_markers,
     )
     ocp.add_plot(
         "Markers plot coordinates",
-        update_function=lambda t, x, u, p: markers_ref[:, 1, :],
+        update_function=lambda t0, phases_dt, node_idx, x, u, p, a: markers_ref[:, 1, :],
         plot_type=PlotType.PLOT,
         color=marker_color[1],
         legend=title_markers,

@@ -14,6 +14,8 @@ from bioptim import (
     Solver,
     VariableScalingList,
     ParameterList,
+    PhaseDynamics,
+    SolutionMerge,
 )
 from tests.utils import TestUtils
 import os
@@ -22,24 +24,26 @@ import os
 class OptimalControlProgram:
     def __init__(self, nlp):
         self.cx = nlp.cx
-        self.assume_phase_dynamics = True
         self.n_phases = 1
         self.nlp = [nlp]
         self.parameters = ParameterList()
         self.implicit_constraints = ConstraintList()
+        self.n_threads = 1
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("cx", [MX, SX])
 @pytest.mark.parametrize("with_ligament", [False, True])
-def test_torque_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
+def test_torque_driven_with_ligament(with_ligament, cx, phase_dynamics):
     # Prepare the program
-    nlp = NonLinearProgram(assume_phase_dynamics=assume_phase_dynamics)
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
     nlp.model = BiorbdModel(
         TestUtils.bioptim_folder() + "/examples/torque_driven_ocp/models/mass_point_with_ligament.bioMod"
     )
     nlp.ns = 5
     nlp.cx = cx
+    nlp.time_mx = MX.sym("time", 1, 1)
+    nlp.dt_mx = MX.sym("dt", 1, 1)
     nlp.initialize(cx)
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
@@ -74,9 +78,9 @@ def test_torque_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
     states = np.random.rand(nlp.states.shape, nlp.ns)
     controls = np.random.rand(nlp.controls.shape, nlp.ns)
     params = np.random.rand(nlp.parameters.shape, nlp.ns)
-    stochastic_variables = np.random.rand(nlp.stochastic_variables.shape, nlp.ns)
-    time = np.random.rand(1, nlp.ns)
-    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, stochastic_variables))
+    algebraic_states = np.random.rand(nlp.algebraic_states.shape, nlp.ns)
+    time = np.random.rand(2)
+    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, algebraic_states))
     if with_ligament:
         np.testing.assert_almost_equal(
             x_out[:, 0],
@@ -89,17 +93,19 @@ def test_torque_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("cx", [MX, SX])
 @pytest.mark.parametrize("with_ligament", [False, True])
-def test_torque_derivative_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
+def test_torque_derivative_driven_with_ligament(with_ligament, cx, phase_dynamics):
     # Prepare the program
-    nlp = NonLinearProgram(assume_phase_dynamics=assume_phase_dynamics)
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
     nlp.model = BiorbdModel(
         TestUtils.bioptim_folder() + "/examples/torque_driven_ocp/models/mass_point_with_ligament.bioMod"
     )
     nlp.ns = 5
     nlp.cx = cx
+    nlp.time_mx = MX.sym("time", 1, 1)
+    nlp.dt_mx = MX.sym("dt", 1, 1)
     nlp.initialize(cx)
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
@@ -136,9 +142,9 @@ def test_torque_derivative_driven_with_ligament(with_ligament, cx, assume_phase_
     states = np.random.rand(nlp.states.shape, nlp.ns)
     controls = np.random.rand(nlp.controls.shape, nlp.ns)
     params = np.random.rand(nlp.parameters.shape, nlp.ns)
-    stochastic_variables = np.random.rand(nlp.stochastic_variables.shape, nlp.ns)
-    time = np.random.rand(1, nlp.ns)
-    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, stochastic_variables))
+    algebraic_states = np.random.rand(nlp.algebraic_states.shape, nlp.ns)
+    time = np.random.rand(2)
+    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, algebraic_states))
     if with_ligament:
         np.testing.assert_almost_equal(
             x_out[:, 0],
@@ -151,17 +157,19 @@ def test_torque_derivative_driven_with_ligament(with_ligament, cx, assume_phase_
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("cx", [MX, SX])
 @pytest.mark.parametrize("with_ligament", [False, True])
-def test_torque_activation_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
+def test_torque_activation_driven_with_ligament(with_ligament, cx, phase_dynamics):
     # Prepare the program
-    nlp = NonLinearProgram(assume_phase_dynamics=assume_phase_dynamics)
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
     nlp.model = BiorbdModel(
         TestUtils.bioptim_folder() + "/examples/torque_driven_ocp/models/mass_point_with_ligament.bioMod"
     )
     nlp.ns = 5
     nlp.cx = cx
+    nlp.time_mx = MX.sym("time", 1, 1)
+    nlp.dt_mx = MX.sym("dt", 1, 1)
     nlp.initialize(cx)
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
@@ -194,9 +202,9 @@ def test_torque_activation_driven_with_ligament(with_ligament, cx, assume_phase_
     states = np.random.rand(nlp.states.shape, nlp.ns)
     controls = np.random.rand(nlp.controls.shape, nlp.ns)
     params = np.random.rand(nlp.parameters.shape, nlp.ns)
-    stochastic_variables = np.random.rand(nlp.stochastic_variables.shape, nlp.ns)
-    time = np.random.rand(1, nlp.ns)
-    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, stochastic_variables))
+    algebraic_states = np.random.rand(nlp.algebraic_states.shape, nlp.ns)
+    time = np.random.rand(2)
+    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, algebraic_states))
     if with_ligament:
         np.testing.assert_almost_equal(
             x_out[:, 0],
@@ -211,17 +219,19 @@ def test_torque_activation_driven_with_ligament(with_ligament, cx, assume_phase_
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("cx", [MX, SX])
 @pytest.mark.parametrize("with_ligament", [False, True])
-def test_muscle_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
+def test_muscle_driven_with_ligament(with_ligament, cx, phase_dynamics):
     # Prepare the program
-    nlp = NonLinearProgram(assume_phase_dynamics=assume_phase_dynamics)
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
     nlp.model = BiorbdModel(
         TestUtils.bioptim_folder() + "/examples/muscle_driven_ocp/models/arm26_with_ligament.bioMod"
     )
     nlp.ns = 5
     nlp.cx = cx
+    nlp.time_mx = MX.sym("time", 1, 1)
+    nlp.dt_mx = MX.sym("dt", 1, 1)
     nlp.initialize(cx)
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
@@ -260,9 +270,9 @@ def test_muscle_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
     states = np.random.rand(nlp.states.shape, nlp.ns)
     controls = np.random.rand(nlp.controls.shape, nlp.ns)
     params = np.random.rand(nlp.parameters.shape, nlp.ns)
-    stochastic_variables = np.random.rand(nlp.stochastic_variables.shape, nlp.ns)
-    time = np.random.rand(1, nlp.ns)
-    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, stochastic_variables))
+    algebraic_states = np.random.rand(nlp.algebraic_states.shape, nlp.ns)
+    time = np.random.rand(2)
+    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, algebraic_states))
 
     if with_ligament:
         np.testing.assert_almost_equal(
@@ -278,12 +288,12 @@ def test_muscle_driven_with_ligament(with_ligament, cx, assume_phase_dynamics):
         )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize(
     "rigidbody_dynamics",
     [RigidBodyDynamics.DAE_FORWARD_DYNAMICS, RigidBodyDynamics.DAE_INVERSE_DYNAMICS],
 )
-def test_ocp_mass_ligament(rigidbody_dynamics, assume_phase_dynamics):
+def test_ocp_mass_ligament(rigidbody_dynamics, phase_dynamics):
     from bioptim.examples.torque_driven_ocp import ocp_mass_with_ligament as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -294,8 +304,8 @@ def test_ocp_mass_ligament(rigidbody_dynamics, assume_phase_dynamics):
     ocp = ocp_module.prepare_ocp(
         biorbd_model_path,
         rigidbody_dynamics=rigidbody_dynamics,
-        assume_phase_dynamics=assume_phase_dynamics,
-        n_threads=8 if assume_phase_dynamics else 1,
+        phase_dynamics=phase_dynamics,
+        n_threads=8 if phase_dynamics == PhaseDynamics.SHARED_DURING_THE_PHASE else 1,
         expand_dynamics=True,
     )
     solver = Solver.IPOPT()
@@ -304,7 +314,9 @@ def test_ocp_mass_ligament(rigidbody_dynamics, assume_phase_dynamics):
     sol = ocp.solve(solver)
 
     # Check some results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     if rigidbody_dynamics == RigidBodyDynamics.DAE_INVERSE_DYNAMICS:
         # initial and final position
@@ -319,7 +331,7 @@ def test_ocp_mass_ligament(rigidbody_dynamics, assume_phase_dynamics):
             np.array([2.158472e-16]),
             decimal=6,
         )
-        np.testing.assert_almost_equal(tau[:, -2], np.array([1.423733e-17]), decimal=6)
+        np.testing.assert_almost_equal(tau[:, -1], np.array([1.423733e-17]), decimal=6)
 
     else:
         # initial and final position
@@ -335,7 +347,7 @@ def test_ocp_mass_ligament(rigidbody_dynamics, assume_phase_dynamics):
             decimal=6,
         )
         np.testing.assert_almost_equal(
-            tau[:, -2],
+            tau[:, -1],
             np.array([1.423733e-17]),
             decimal=6,
         )

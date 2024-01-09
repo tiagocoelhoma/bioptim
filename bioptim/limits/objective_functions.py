@@ -77,9 +77,8 @@ class Objective(PenaltyOption):
             penalty=objective, phase=phase, custom_function=custom_function, is_stochastic=is_stochastic, **params
         )
 
-    def _add_penalty_to_pool(self, controller: PenaltyController):
-        if isinstance(controller, (list, tuple)):
-            controller = controller[0]  # This is a special case of Node.TRANSITION
+    def _add_penalty_to_pool(self, controller: list[PenaltyController, ...]):
+        controller = controller[0]  # This is a special case of Node.TRANSITION
 
         if self.penalty_type == PenaltyType.INTERNAL:
             pool = (
@@ -295,7 +294,7 @@ class ObjectiveFunction:
         if list_index >= len(ocp_or_nlp.J) or list_index < 0:
             raise ValueError("'list_index' must be defined properly")
 
-        ocp_or_nlp.J[list_index].target = [new_target] if not isinstance(new_target, list | tuple) else new_target
+        ocp_or_nlp.J[list_index].target = new_target
 
 
 class ObjectiveFcn:
@@ -334,7 +333,7 @@ class ObjectiveFcn:
         MINIMIZE_TIME = (ObjectiveFunction.LagrangeFunction.Functions.minimize_time,)
         PROPORTIONAL_CONTROL = (PenaltyFunctionAbstract.Functions.proportional_controls,)
         PROPORTIONAL_STATE = (PenaltyFunctionAbstract.Functions.proportional_states,)
-        STOCHASTIC_MINIMIZE_VARIABLE = (PenaltyFunctionAbstract.Functions.stochastic_minimize_variables,)
+        MINIMIZE_ALGEBRAIC_STATES = (PenaltyFunctionAbstract.Functions.minimize_algebraic_states,)
         STOCHASTIC_MINIMIZE_EXPECTED_FEEDBACK_EFFORTS = (
             PenaltyFunctionAbstract.Functions.stochastic_minimize_expected_feedback_efforts,
         )
@@ -370,7 +369,7 @@ class ObjectiveFcn:
             Returns the type of the penalty
         """
 
-        CONTINUITY = (PenaltyFunctionAbstract.Functions.continuity,)
+        STATE_CONTINUITY = (PenaltyFunctionAbstract.Functions.state_continuity,)
         CUSTOM = (PenaltyFunctionAbstract.Functions.custom,)
         MINIMIZE_ANGULAR_MOMENTUM = (PenaltyFunctionAbstract.Functions.minimize_angular_momentum,)
         MINIMIZE_COM_ACCELERATION = (PenaltyFunctionAbstract.Functions.minimize_com_acceleration,)
@@ -390,10 +389,9 @@ class ObjectiveFcn:
         MINIMIZE_STATE = (PenaltyFunctionAbstract.Functions.minimize_states,)
         MINIMIZE_TIME = (ObjectiveFunction.MayerFunction.Functions.minimize_time,)
         PROPORTIONAL_STATE = (PenaltyFunctionAbstract.Functions.proportional_states,)
-        STOCHASTIC_MINIMIZE_VARIABLE = (PenaltyFunctionAbstract.Functions.stochastic_minimize_variables,)
+        MINIMIZE_ALGEBRAIC_STATE = (PenaltyFunctionAbstract.Functions.minimize_algebraic_states,)
         SUPERIMPOSE_MARKERS = (PenaltyFunctionAbstract.Functions.superimpose_markers,)
         SUPERIMPOSE_MARKERS_VELOCITY = (PenaltyFunctionAbstract.Functions.superimpose_markers_velocity,)
-        TRACK_CONTROL = (PenaltyFunctionAbstract.Functions.minimize_controls,)
         TRACK_MARKER_WITH_SEGMENT_AXIS = (PenaltyFunctionAbstract.Functions.track_marker_with_segment_axis,)
         TRACK_MARKERS = (PenaltyFunctionAbstract.Functions.minimize_markers,)
         TRACK_MARKERS_ACCELERATION = (PenaltyFunctionAbstract.Functions.minimize_markers_acceleration,)
@@ -488,9 +486,8 @@ class ParameterObjective(PenaltyOption):
 
         super(ParameterObjective, self).__init__(penalty=parameter_objective, custom_function=custom_function, **params)
 
-    def _add_penalty_to_pool(self, controller: PenaltyController):
-        if isinstance(controller, (list, tuple)):
-            controller = controller[0]  # This is a special case of Node.TRANSITION
+    def _add_penalty_to_pool(self, controller: list[PenaltyController, ...]):
+        controller = controller[0]  # This is a special case of Node.TRANSITION
 
         if self.penalty_type == PenaltyType.INTERNAL:
             pool = (

@@ -33,6 +33,8 @@ from bioptim import (
     InterpolationType,
     Solver,
     Node,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 
@@ -97,7 +99,7 @@ def prepare_mhe(
     max_torque: float,
     x_init: np.ndarray,
     u_init: np.ndarray,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     n_threads: int = 4,
     expand_dynamics: bool = True,
 ):
@@ -117,10 +119,11 @@ def prepare_mhe(
         The states initial guess
     u_init
         The controls initial guess
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     n_threads: int
         Number of threads to use
     expand_dynamics: bool
@@ -150,16 +153,15 @@ def prepare_mhe(
 
     return MovingHorizonEstimator(
         bio_model,
-        Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics),
+        Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics),
         window_len,
         window_duration,
-        objective_functions=new_objectives,
+        common_objective_functions=new_objectives,
         x_bounds=x_bounds,
         u_bounds=u_bounds,
         x_init=x_init_list,
         u_init=u_init_list,
         n_threads=n_threads,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -228,15 +230,16 @@ def main():
 
     # Solve the program
     sol = mhe.solve(update_functions, **get_solver_options(solver))
+    sol_states = sol.decision_states(to_merge=SolutionMerge.NODES)
 
     print("ACADOS with Bioptim")
     print(f"Window size of MHE : {window_duration} s.")
     print(f"New measurement every : {1 / n_shoot_per_second} s.")
     print(f"Average time per iteration of MHE : {sol.solver_time_to_optimize / (n_frames_total - 1)} s.")
     print(f"Average real time per iteration of MHE : {sol.real_time_to_optimize / (n_frames_total - 1)} s.")
-    print(f"Norm of the error on q = {np.linalg.norm(states[:bio_model.nb_q, :n_frames_total] - sol.states['q'])}")
+    print(f"Norm of the error on q = {np.linalg.norm(states[:bio_model.nb_q, :n_frames_total] - sol_states['q'])}")
 
-    markers_estimated = states_to_markers(bio_model, sol.states["q"])
+    markers_estimated = states_to_markers(bio_model, sol_states["q"])
 
     plt.plot(
         markers_noised[1, :, :n_frames_total].T,
@@ -251,9 +254,9 @@ def main():
     plt.legend()
 
     plt.figure()
-    plt.plot(sol.states["q"].T, "--", label="States estimate (q)")
-    plt.plot(sol.states["qdot"].T, "--", label="States estimate (qdot)")
-    plt.plot(states[:, :n_frames_total].T, label="State truth")
+    plt.plot(sol_states["q"].T, "--", label="States estimate (q)")
+    plt.plot(sol_states["qdot"].T, "--", label="States estimate (qdot)")
+    plt.plot(sol_states[:, :n_frames_total].T, label="State truth")
     plt.legend()
     plt.show()
 

@@ -9,8 +9,8 @@ from .interface_utils import (
     generic_set_lagrange_multiplier,
 )
 from .solver_interface import SolverInterface
-from ..interfaces.solver_options import Solver
-from ..optimization.solution import Solution
+from ..interfaces import Solver
+from bioptim.optimization.solution.solution import Solution
 from ..optimization.non_linear_program import NonLinearProgram
 from ..misc.enums import (
     SolverType,
@@ -86,7 +86,7 @@ class IpoptInterface(SolverInterface):
 
         generic_online_optim(self, ocp, show_options)
 
-    def solve(self) -> dict:
+    def solve(self, expand_during_shake_tree) -> dict:
         """
         Solve the prepared ocp
 
@@ -94,7 +94,7 @@ class IpoptInterface(SolverInterface):
         -------
         A reference to the solution
         """
-        return generic_solve(self)
+        return generic_solve(self, expand_during_shake_tree)
 
     def set_lagrange_multiplier(self, sol: Solution):
         """
@@ -138,4 +138,4 @@ class IpoptInterface(SolverInterface):
         -------
 
         """
-        return generic_get_all_penalties(self, nlp, penalties, is_unscaled=False)
+        return generic_get_all_penalties(self, nlp, penalties, scaled=True)

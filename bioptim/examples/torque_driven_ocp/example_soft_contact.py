@@ -26,6 +26,8 @@ from bioptim import (
     SoftContactDynamics,
     RigidBodyDynamics,
     SolutionIntegrator,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 
@@ -62,7 +64,6 @@ def prepare_single_shooting(
         ode_solver=ode_solver,
         use_sx=use_sx,
         n_threads=n_threads,
-        assume_phase_dynamics=True,
     )
 
 
@@ -70,31 +71,36 @@ def initial_states_from_single_shooting(model, ns, tf, ode_solver):
     ocp = prepare_single_shooting(model, ns, tf, ode_solver)
 
     # Find equilibrium
+    dt = np.array([tf / ns])
     x = InitialGuessList()
     x["q"] = [0, 0.10, 0]
     x["qdot"] = [1e-10, 1e-10, 1e-10]
     u = InitialGuessList()
     u["tau"] = [0, 0, 0]
     p = InitialGuessList()
-    s = InitialGuessList()
+    a = InitialGuessList()
 
-    sol_from_initial_guess = Solution(ocp, [x, u, p, s])
-    s = sol_from_initial_guess.integrate(shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP)
+    sol_from_initial_guess = Solution.from_initial_guess(ocp, [dt, x, u, p, a])
+    sol = sol_from_initial_guess.integrate(
+        shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP, to_merge=SolutionMerge.NODES
+    )
     # s.animate()
 
     # Rolling Sphere at equilibrium
-    x0 = s.states["q"][:, -1]
+    x0 = sol["q"][:, -1]
     x = InitialGuessList()
     x["q"] = x0
     x["qdot"] = np.array([0] * 3)
-    u = InitialGuessList()
-    u["tau"] = [0, 0, -10]
-    p = InitialGuessList()
-    s = InitialGuessList()
+    # u = InitialGuessList()
+    # u["tau"] = [0, 0, -10]
+    # p = InitialGuessList()
+    # a = InitialGuessList()
 
-    sol_from_initial_guess = Solution(ocp, [x, u, p, s])
-    s = sol_from_initial_guess.integrate(shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP)
-    # s.animate()
+    # sol_from_initial_guess = Solution.from_initial_guess(ocp, [dt, x, u, p, a])
+    # sol2 = sol_from_initial_guess.integrate(
+    #   shooting_type=Shooting.SINGLE, integrator=SolutionIntegrator.OCP, to_merge=SolutionMerge.NODES
+    # )
+    # sol2.animate()
 
     return x
 
@@ -107,7 +113,7 @@ def prepare_ocp(
     slack: float = 1e-4,
     n_threads: int = 8,
     use_sx: bool = False,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
 ) -> OptimalControlProgram:
     """
     Prepare the ocp
@@ -147,7 +153,7 @@ def prepare_ocp(
         DynamicsFcn.TORQUE_DRIVEN,
         rigidbody_dynamics=RigidBodyDynamics.ODE,
         soft_contacts_dynamics=SoftContactDynamics.ODE,
-        expand=True,
+        phase_dynamics=phase_dynamics,
     )
 
     # Constraints
@@ -191,7 +197,6 @@ def prepare_ocp(
         ode_solver=ode_solver,
         use_sx=use_sx,
         n_threads=n_threads,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 

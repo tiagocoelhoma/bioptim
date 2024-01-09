@@ -18,11 +18,12 @@ from bioptim import (
     ConstraintList,
     ConstraintFcn,
     BoundsList,
-    InitialGuessList,
+    PhaseDynamics,
     Solver,
     Node,
     Axis,
     Solution,
+    SolutionMerge,
 )
 
 
@@ -37,7 +38,8 @@ class MyCyclicNMPC(MultiCyclicNonlinearModelPredictiveControl):
     def advance_window_initial_guess_states(self, sol, n_cycles_simultaneous=None):
         # Reimplementation of the advance_window method so the rotation of the wheel restart at -pi
         super(MyCyclicNMPC, self).advance_window_initial_guess_states(sol)
-        self.nlp[0].x_init["q"].init[0, :] = sol.states["q"][0, :]  # Keep the previously found value for the wheel
+        q = sol.decision_states(to_merge=SolutionMerge.NODES)["q"]
+        self.nlp[0].x_init["q"].init[0, :] = q[0, :]  # Keep the previously found value for the wheel
         return True
 
 
@@ -48,11 +50,11 @@ def prepare_nmpc(
     n_cycles_simultaneous,
     n_cycles_to_advance,
     max_torque,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ):
     model = BiorbdModel(model_path)
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics)
+    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     x_bounds = BoundsList()
     x_bounds["q"] = model.bounds_from_ranges("q")
@@ -86,11 +88,10 @@ def prepare_nmpc(
         cycle_duration=cycle_duration,
         n_cycles_simultaneous=n_cycles_simultaneous,
         n_cycles_to_advance=n_cycles_to_advance,
-        objective_functions=new_objectives,
+        common_objective_functions=new_objectives,
         constraints=constraints,
         x_bounds=x_bounds,
         u_bounds=u_bounds,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 

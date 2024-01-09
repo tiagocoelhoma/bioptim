@@ -1,12 +1,10 @@
 import pytest
 import numpy as np
-from bioptim import (
-    Solver,
-)
+from bioptim import Solver, PhaseDynamics, SolutionMerge
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
-def test_custom_model(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+def test_custom_model(phase_dynamics):
     from bioptim.examples.custom_model import main as ocp_module
     from bioptim.examples.custom_model.custom_package import my_model as model
     from bioptim.examples.custom_model.custom_package import custom_configure_my_dynamics as configure_dynamics
@@ -16,7 +14,7 @@ def test_custom_model(assume_phase_dynamics):
         final_time=1,
         n_shooting=30,
         configure_dynamics=configure_dynamics,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         n_threads=1,
         expand_dynamics=True,
     )
@@ -33,7 +31,8 @@ def test_custom_model(assume_phase_dynamics):
     solver.set_maximum_iterations(2)
     sol = ocp.solve(solver=solver)
 
-    np.testing.assert_almost_equal(sol.states["q"][0, 0], np.array([0]))
-    np.testing.assert_almost_equal(sol.states["q"][0, -1], np.array([3.14]))
-    np.testing.assert_almost_equal(sol.states["qdot"][0, 0], np.array([0]))
-    np.testing.assert_almost_equal(sol.states["qdot"][0, -1], np.array([0]))
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    np.testing.assert_almost_equal(states["q"][0, 0], np.array([0]))
+    np.testing.assert_almost_equal(states["q"][0, -1], np.array([3.14]))
+    np.testing.assert_almost_equal(states["qdot"][0, 0], np.array([0]))
+    np.testing.assert_almost_equal(states["qdot"][0, -1], np.array([0]))

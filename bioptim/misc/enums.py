@@ -1,6 +1,11 @@
 from enum import Enum, IntEnum
 
 
+class PhaseDynamics(Enum):
+    SHARED_DURING_THE_PHASE = "shared_during_the_phase"
+    ONE_PER_NODE = "one_per_node"
+
+
 class Axis(IntEnum):
     """
     Selection of valid axis (X, Y or Z)
@@ -108,8 +113,7 @@ class VariableType(Enum):
     STATES = "states"
     CONTROLS = "controls"
     STATES_DOT = "states_dot"
-    ALGEBRAIC = "algebraic"
-    STOCHASTIC = "stochastic"
+    ALGEBRAIC_STATES = "algebraic_states"
 
 
 class SolutionIntegrator(Enum):

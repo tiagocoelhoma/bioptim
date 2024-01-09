@@ -36,6 +36,8 @@ from bioptim import (
     Solver,
     Solution,
     PenaltyController,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 
@@ -56,7 +58,7 @@ def prepare_ocp_first_pass(
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
     use_sx: bool = True,
     n_threads: int = 1,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     """
@@ -78,10 +80,11 @@ def prepare_ocp_first_pass(
         If the SX variable should be used instead of MX (can be extensive on RAM)
     n_threads: int
         The number of threads to use in the paralleling (1 = no parallel computing)
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     expand_dynamics: bool
         If the dynamics function should be expanded. Please note, this will solve the problem faster, but will slow down
         the declaration of the OCP, so it is a trade-off. Also depending on the solver, it may or may not work
@@ -100,7 +103,12 @@ def prepare_ocp_first_pass(
     objective_functions.add(ObjectiveFcn.Mayer.MINIMIZE_TIME, weight=100)
 
     # Dynamics
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics)
+    dynamics = Dynamics(
+        DynamicsFcn.TORQUE_DRIVEN,
+        state_continuity_weight=state_continuity_weight,
+        expand_dynamics=expand_dynamics,
+        phase_dynamics=phase_dynamics,
+    )
 
     # Path constraint
     x_bounds = BoundsList()
@@ -152,13 +160,12 @@ def prepare_ocp_first_pass(
         ode_solver=ode_solver,
         use_sx=use_sx,
         n_threads=n_threads,
-        state_continuity_weight=state_continuity_weight,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
 def prepare_ocp_second_pass(
     biorbd_model_path: str,
+    ns: int,
     solution: Solution,
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
     use_sx: bool = True,
@@ -201,9 +208,10 @@ def prepare_ocp_second_pass(
     x_bounds["qdot"][:, 0] = 0
 
     # Initial guess
+    states = solution.decision_states(to_merge=SolutionMerge.NODES)
     x_init = InitialGuessList()
-    x_init.add("q", solution.states[0]["q"], interpolation=InterpolationType.EACH_FRAME)
-    x_init.add("qdot", solution.states[0]["qdot"], interpolation=InterpolationType.EACH_FRAME)
+    x_init.add("q", states["q"], interpolation=InterpolationType.EACH_FRAME)
+    x_init.add("qdot", states["qdot"], interpolation=InterpolationType.EACH_FRAME)
 
     # Define control path constraint
     n_tau = bio_model.nb_tau
@@ -212,8 +220,9 @@ def prepare_ocp_second_pass(
     u_bounds["tau"] = [tau_min] * n_tau, [tau_max] * n_tau
     u_bounds["tau"][1, :] = 0  # Prevent the model from actively rotate
 
+    controls = solution.decision_controls(to_merge=SolutionMerge.NODES)
     u_init = InitialGuessList()
-    u_init.add("tau", solution.controls[0]["tau"][:, :-1], interpolation=InterpolationType.EACH_FRAME)
+    u_init.add("tau", controls["tau"], interpolation=InterpolationType.EACH_FRAME)
 
     constraints = ConstraintList()
     constraints.add(ConstraintFcn.SUPERIMPOSE_MARKERS, node=Node.END, first_marker="marker_2", second_marker="target_2")
@@ -225,11 +234,12 @@ def prepare_ocp_second_pass(
     constraints.add(out_of_sphere, y=1.4, z=0.5, min_bound=0.35, max_bound=np.inf, node=Node.ALL_SHOOTING)
     constraints.add(out_of_sphere, y=2, z=1.2, min_bound=0.35, max_bound=np.inf, node=Node.ALL_SHOOTING)
 
+    final_time = float(solution.decision_time(to_merge=SolutionMerge.NODES)[-1, 0])
     return OptimalControlProgram(
         bio_model,
         dynamics,
-        solution.ns,
-        solution.phase_time[-1],
+        ns,
+        final_time,
         x_init=x_init,
         u_init=u_init,
         x_bounds=x_bounds,
@@ -250,10 +260,11 @@ def main():
     # --- First pass --- #
     # --- Prepare the ocp --- #
     np.random.seed(123456)
+    n_shooting = 500
     ocp_first = prepare_ocp_first_pass(
         biorbd_model_path="models/pendulum_maze.bioMod",
         final_time=5,
-        n_shooting=500,
+        n_shooting=n_shooting,
         # change the weight to observe the impact on the continuity of the solution
         # or comment to see how the constrained program would fare
         state_continuity_weight=1_000_000,
@@ -279,7 +290,7 @@ def main():
     solver_second.set_maximum_iterations(10000)
 
     ocp_second = prepare_ocp_second_pass(
-        biorbd_model_path="models/pendulum_maze.bioMod", solution=sol_first, n_threads=3
+        biorbd_model_path="models/pendulum_maze.bioMod", ns=n_shooting, solution=sol_first, n_threads=3
     )
 
     # Custom plots

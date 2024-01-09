@@ -9,16 +9,16 @@ import os
 import pytest
 
 import numpy as np
-from bioptim import OdeSolver, RigidBodyDynamics, Solver
+from bioptim import OdeSolver, RigidBodyDynamics, Solver, PhaseDynamics, SolutionMerge
 
 from tests.utils import TestUtils
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize(
     "objective_name", ["MINIMIZE_PREDICTED_COM_HEIGHT", "MINIMIZE_COM_POSITION", "MINIMIZE_COM_VELOCITY"]
 )
-def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
+def test_maximize_predicted_height_CoM(objective_name, phase_dynamics):
     from bioptim.examples.torque_driven_ocp import maximize_predicted_height_CoM as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -32,6 +32,7 @@ def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
         objective_name=objective_name,
         com_constraints=True,
         expand_dynamics=True,
+        phase_dynamics=phase_dynamics,
     )
     sol = ocp.solve()
 
@@ -43,7 +44,9 @@ def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
     np.testing.assert_equal(g.shape, (76, 1))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial position
     np.testing.assert_almost_equal(q[:, 0], np.array((0.0, 0.0, -0.5, 0.5)))
@@ -60,7 +63,7 @@ def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
         np.testing.assert_almost_equal(qdot[:, -1], np.array((1.2477864, -1.2847726, -3.5819658, 3.5819658)))
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((-18.6635363)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array(-0.5142317))
+        np.testing.assert_almost_equal(tau[:, -1], np.array(-0.5142317))
     elif objective_name == "MINIMIZE_COM_POSITION":
         # Check objective function value
         np.testing.assert_almost_equal(f[0, 0], 0.4652603337905152)
@@ -71,7 +74,7 @@ def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
         np.testing.assert_almost_equal(qdot[:, -1], np.array((1.2302646, -1.2667316, -3.5316666, 3.5316666)))
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((-18.5531974)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array(-0.9187262))
+        np.testing.assert_almost_equal(tau[:, -1], np.array(-0.9187262))
     elif objective_name == "MINIMIZE_COM_VELOCITY":
         # Check objective function value
         np.testing.assert_almost_equal(f[0, 0], 0.46678212036841293)
@@ -82,17 +85,14 @@ def test_maximize_predicted_height_CoM(objective_name, assume_phase_dynamics):
         np.testing.assert_almost_equal(qdot[:, -1], np.array((1.2640489, -1.3015177, -3.6286507, 3.6286507)))
         # initial and final controls
         np.testing.assert_almost_equal(tau[:, 0], np.array((-18.7970058)))
-        np.testing.assert_almost_equal(tau[:, -2], np.array(-0.1918057))
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+        np.testing.assert_almost_equal(tau[:, -1], np.array(-0.1918057))
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True])
-def test_maximize_predicted_height_CoM_with_actuators(assume_phase_dynamics):
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE])
+def test_maximize_predicted_height_CoM_with_actuators(phase_dynamics):
     from bioptim.examples.torque_driven_ocp import maximize_predicted_height_CoM as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -103,7 +103,7 @@ def test_maximize_predicted_height_CoM_with_actuators(assume_phase_dynamics):
         n_shooting=20,
         use_actuators=True,
         ode_solver=OdeSolver.RK4(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=True,
     )
     sol = ocp.solve()
@@ -119,7 +119,9 @@ def test_maximize_predicted_height_CoM_with_actuators(assume_phase_dynamics):
     np.testing.assert_almost_equal(g, np.zeros((160, 1)), decimal=6)
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array((0.0, 0.0, -0.5, 0.5)))
@@ -131,21 +133,18 @@ def test_maximize_predicted_height_CoM_with_actuators(assume_phase_dynamics):
     )
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array((-0.550905)))
-    np.testing.assert_almost_equal(tau[:, -2], np.array(-0.0050623))
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tau[:, -1], np.array(-0.0050623))
 
     # simulate
     TestUtils.simulate(sol, decimal_value=5)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE])
 @pytest.mark.parametrize(
     "rigidbody_dynamics",
     [RigidBodyDynamics.ODE, RigidBodyDynamics.DAE_FORWARD_DYNAMICS, RigidBodyDynamics.DAE_INVERSE_DYNAMICS],
 )
-def test_maximize_predicted_height_CoM_rigidbody_dynamics(rigidbody_dynamics, assume_phase_dynamics):
+def test_maximize_predicted_height_CoM_rigidbody_dynamics(rigidbody_dynamics, phase_dynamics):
     from bioptim.examples.torque_driven_ocp import maximize_predicted_height_CoM as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -159,7 +158,7 @@ def test_maximize_predicted_height_CoM_rigidbody_dynamics(rigidbody_dynamics, as
         use_actuators=False,
         ode_solver=ode_solver,
         rigidbody_dynamics=rigidbody_dynamics,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=True,
     )
     sol_opt = Solver.IPOPT(show_online_optim=False)

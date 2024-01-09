@@ -21,7 +21,10 @@ from bioptim import (
     Node,
     OdeSolverBase,
     BiMapping,
+    PhaseDynamics,
+    SolutionMerge,
 )
+import numpy as np
 
 
 def prepare_ocp(
@@ -31,7 +34,7 @@ def prepare_ocp(
     n_shooting: tuple,
     biorbd_model_path: str = "models/cube.bioMod",
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     with_phase_time_equality: bool = False,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
@@ -53,10 +56,11 @@ def prepare_ocp(
         The path to the bioMod
     ode_solver: OdeSolverBase
         The ode solver to use
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     with_phase_time_equality: bool
         If the phase time equality should be applied, this is ignored if len(n_shooting) = 1 (instead of 3)
     expand_dynamics: bool
@@ -93,10 +97,10 @@ def prepare_ocp(
 
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=0, expand=expand_dynamics)
+    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=0, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
     if n_phases == 3:
-        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=1, expand=expand_dynamics)
-        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=2, expand=expand_dynamics)
+        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=1, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
+        dynamics.add(DynamicsFcn.TORQUE_DRIVEN, phase=2, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     # Constraints
     constraints = ConstraintList()
@@ -114,7 +118,7 @@ def prepare_ocp(
             ConstraintFcn.SUPERIMPOSE_MARKERS, node=Node.END, first_marker="m0", second_marker="m2", phase=2
         )
         constraints.add(
-            ConstraintFcn.TIME_CONSTRAINT, node=Node.END, min_bound=time_min[2], max_bound=time_max[2], phase=2
+            ConstraintFcn.TIME_CONSTRAINT, node=Node.END, min_bound=time_min[0], max_bound=time_max[0], phase=2
         )
 
     # Path constraint
@@ -158,7 +162,6 @@ def prepare_ocp(
         constraints=constraints,
         ode_solver=ode_solver,
         time_phase_mapping=time_phase_mapping,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -167,10 +170,12 @@ def main():
     Run a multiphase problem with free time phases and animate the results
     """
 
-    final_time = (2, 5, 4)
-    time_min = (0.7, 3, 0.1)
-    time_max = (2, 4, 1)
+    # Even though three phases are declared (len(ns) = 3), we only need to declare two final times because of the
+    # time phase mapping
     ns = (20, 30, 20)
+    final_time = (2, 5)
+    time_min = (0.7, 3)
+    time_max = (2, 4)
     ocp = prepare_ocp(
         final_time=final_time, time_min=time_min, time_max=time_max, n_shooting=ns, with_phase_time_equality=True
     )
@@ -179,8 +184,8 @@ def main():
     sol = ocp.solve(Solver.IPOPT(show_online_optim=platform.system() == "Linux"))
 
     # --- Show results --- #
-    time = [sol.parameters["time"][i, 0] for i in ocp.time_phase_mapping.to_second.map_idx]
-    print(f"The optimized phase time are: {time[0]}s, {time[1]}s and {time[2]}s.")
+    times = [float(t[-1, 0]) for t in sol.decision_time(to_merge=SolutionMerge.NODES)]
+    print(f"The optimized phase time are: {times[0]}s, {times[1]}s and {times[2]}s.")
     sol.animate()
 
 

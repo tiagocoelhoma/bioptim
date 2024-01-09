@@ -20,6 +20,8 @@ from bioptim import (
     DynamicsFcn,
     BoundsList,
     Solver,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 
@@ -31,7 +33,7 @@ def prepare_ocp(
     objective: str,
     target: np.ndarray = None,
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
 ) -> OptimalControlProgram:
     """
     The initialization of an ocp
@@ -52,10 +54,11 @@ def prepare_ocp(
         The target value to reach
     ode_solver: OdeSolverBase = OdeSolver.RK4()
         Which type of OdeSolver to use
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
 
     Returns
     -------
@@ -81,7 +84,7 @@ def prepare_ocp(
         raise ValueError("Wrong objective")
 
     # Dynamics
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=True)
+    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=True, phase_dynamics=phase_dynamics)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -110,7 +113,6 @@ def prepare_ocp(
         use_sx=True,
         n_threads=1,
         control_type=control_type,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -128,24 +130,16 @@ def sum_cost_function_output(sol):
     return float(output[idx:])
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [False, True])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+@pytest.mark.parametrize("objective", ["torque", "qdot"])
 @pytest.mark.parametrize(
-    "objective",
-    ["torque", "qdot"],
-)
-@pytest.mark.parametrize(
-    "control_type",
-    [ControlType.CONSTANT, ControlType.CONSTANT_WITH_LAST_NODE, ControlType.LINEAR_CONTINUOUS],
+    "control_type", [ControlType.CONSTANT, ControlType.CONSTANT_WITH_LAST_NODE, ControlType.LINEAR_CONTINUOUS]
 )
 @pytest.mark.parametrize(
     "integration_rule",
-    [
-        QuadratureRule.RECTANGLE_LEFT,
-        QuadratureRule.APPROXIMATE_TRAPEZOIDAL,
-        QuadratureRule.TRAPEZOIDAL,
-    ],
+    [QuadratureRule.RECTANGLE_LEFT, QuadratureRule.APPROXIMATE_TRAPEZOIDAL, QuadratureRule.TRAPEZOIDAL],
 )
-def test_pendulum(control_type, integration_rule, objective, assume_phase_dynamics):
+def test_pendulum(control_type, integration_rule, objective, phase_dynamics):
     from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -156,51 +150,55 @@ def test_pendulum(control_type, integration_rule, objective, assume_phase_dynami
         integration_rule=integration_rule,
         objective=objective,
         control_type=control_type,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
     solver = Solver.IPOPT()
     solver.set_maximum_iterations(5)
     sol = ocp.solve(solver)
     j_printed = sum_cost_function_output(sol)
-    tau = sol.controls["tau"]
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    tau = controls["tau"]
+    dt = sol.t_span[0][-1]
 
     # Check objective function value
     f = np.array(sol.cost)
     np.testing.assert_equal(f.shape, (1, 1))
     if integration_rule == QuadratureRule.RECTANGLE_LEFT:
         if control_type == ControlType.CONSTANT:
-            np.testing.assert_equal(tau[:, -1], np.array([np.nan, np.nan]))
             if objective == "torque":
                 np.testing.assert_almost_equal(f[0, 0], 36.077211633874164)
                 np.testing.assert_almost_equal(j_printed, 36.077211633874164)
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-15.79894366, 0.0]))
             else:
                 np.testing.assert_almost_equal(f[0, 0], 18.91863487850207)
                 np.testing.assert_almost_equal(j_printed, 18.91863487850207)
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-17.24468626, 0.0]))
+
         elif control_type == ControlType.CONSTANT_WITH_LAST_NODE:
             np.testing.assert_equal(np.isnan(tau[:, -1]), np.array([False, False]))
             if objective == "torque":
                 np.testing.assert_almost_equal(f[0, 0], 36.077211633874185)
                 np.testing.assert_almost_equal(j_printed, 36.077211633874185)
 
-                controls_faking_constant = sol.controls["tau"]
-                controls_faking_constant[:, -1] = 0
-                states = np.vstack((sol.states["q"], sol.states["qdot"]))
+                controls = sol.decision_controls(to_merge=[SolutionMerge.NODES, SolutionMerge.KEYS])
+                states = sol.decision_states(to_merge=[SolutionMerge.NODES, SolutionMerge.KEYS])
                 out = 0
                 for i, fcn in enumerate(ocp.nlp[0].J[0].weighted_function):
                     out += fcn(
-                        [],
-                        states[:, i],  # States
-                        controls_faking_constant[:, i],  # Controls
+                        0,
+                        dt,
+                        states[:, i : i + 2].reshape((-1, 1)),  # States
+                        controls[:, i : i + 2].reshape((-1, 1)),  # Controls
                         [],  # Parameters
-                        [],  # Stochastic variables
+                        [],  # Algebraic states
                         ocp.nlp[0].J[0].weight,  # Weight
                         [],  # Target
-                        ocp.nlp[0].J[0].dt,  # dt
                     )
-                np.testing.assert_almost_equal(np.array([out])[0][0][0], 36.077211633874185)
+                np.testing.assert_almost_equal(float(out[0, 0]), 36.077211633874185)
             else:
                 np.testing.assert_almost_equal(f[0, 0], 18.918634878502065)
                 np.testing.assert_almost_equal(j_printed, 18.918634878502065)
+
         elif control_type == ControlType.LINEAR_CONTINUOUS:
             if objective == "torque":
                 np.testing.assert_almost_equal(f[0, 0], 52.0209218166193)
@@ -208,13 +206,18 @@ def test_pendulum(control_type, integration_rule, objective, assume_phase_dynami
             else:
                 np.testing.assert_almost_equal(f[0, 0], 18.844221574687065)
                 np.testing.assert_almost_equal(j_printed, 18.844221574687065)
+
+        else:
+            raise NotImplementedError("Control type not implemented yet")
+
     elif integration_rule == QuadratureRule.APPROXIMATE_TRAPEZOIDAL:
         if control_type == ControlType.CONSTANT:
-            np.testing.assert_equal(tau[:, -1], np.array([np.nan, np.nan]))
             if objective == "torque":
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-15.79894366, 0.0]))
                 np.testing.assert_almost_equal(f[0, 0], 36.077211633874164)
                 np.testing.assert_almost_equal(j_printed, 36.077211633874164)
             else:
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-17.24468626, 0.0]))
                 np.testing.assert_almost_equal(f[0, 0], 18.91863487850206)
                 np.testing.assert_almost_equal(j_printed, 18.91863487850206)
         elif control_type == ControlType.CONSTANT_WITH_LAST_NODE:
@@ -227,38 +230,39 @@ def test_pendulum(control_type, integration_rule, objective, assume_phase_dynami
                 np.testing.assert_almost_equal(j_printed, 18.91863487850206)
         elif control_type == ControlType.LINEAR_CONTINUOUS:
             if objective == "torque":
-                np.testing.assert_almost_equal(f[0, 0], 26.170949218870444)
-                np.testing.assert_almost_equal(j_printed, 26.170949218870444)
+                np.testing.assert_almost_equal(f[0, 0], 52.0209218166202)
+                np.testing.assert_almost_equal(j_printed, 52.0209218166202)
             else:
                 np.testing.assert_almost_equal(f[0, 0], 18.844221574687094)
                 np.testing.assert_almost_equal(j_printed, 18.844221574687094)
     elif integration_rule == QuadratureRule.TRAPEZOIDAL:
         if control_type == ControlType.CONSTANT:
-            np.testing.assert_equal(tau[:, -1], np.array([np.nan, np.nan]))
             if objective == "torque":
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-15.79894366, 0.0]))
                 np.testing.assert_almost_equal(f[0, 0], 36.077211633874164)
                 np.testing.assert_almost_equal(j_printed, 36.077211633874164)
             else:
-                np.testing.assert_almost_equal(f[0, 0], 17.944878542423062)
-                np.testing.assert_almost_equal(j_printed, 17.944878542423062)
+                np.testing.assert_almost_equal(tau[:, -1], np.array([-15.3519514, 0.0]))
+                np.testing.assert_almost_equal(f[0, 0], 18.112963129413707)
+                np.testing.assert_almost_equal(j_printed, 18.112963129413707)
         elif control_type == ControlType.CONSTANT_WITH_LAST_NODE:
-            np.testing.assert_equal(np.isnan(tau[:, -1]), np.array([False, False]))
+            np.testing.assert_equal(np.isnan(tau[:, -1]), np.array([0, 0]))
             if objective == "torque":
-                np.testing.assert_almost_equal(f[0, 0], 36.077211633874164)
-                np.testing.assert_almost_equal(j_printed, 36.077211633874164)
+                np.testing.assert_almost_equal(f[0, 0], 36.077211633874384)
+                np.testing.assert_almost_equal(j_printed, 36.077211633874384)
             else:
                 np.testing.assert_almost_equal(f[0, 0], 17.944878542423062)
                 np.testing.assert_almost_equal(j_printed, 17.944878542423062)
         elif control_type == ControlType.LINEAR_CONTINUOUS:
             if objective == "torque":
-                np.testing.assert_almost_equal(f[0, 0], 26.170949218870444)
-                np.testing.assert_almost_equal(j_printed, 26.170949218870444)
+                np.testing.assert_almost_equal(f[0, 0], 34.52084504124038)
+                np.testing.assert_almost_equal(j_printed, 34.52084504124038)
             else:
-                np.testing.assert_almost_equal(f[0, 0], 18.799673213312587)
-                np.testing.assert_almost_equal(j_printed, 18.799673213312587)
+                np.testing.assert_almost_equal(f[0, 0], 17.410587837666313)
+                np.testing.assert_almost_equal(j_printed, 17.410587837666313)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize(
     "objective",
     ["torque", "qdot"],
@@ -277,7 +281,7 @@ def test_pendulum(control_type, integration_rule, objective, assume_phase_dynami
         QuadratureRule.MIDPOINT,
     ],
 )
-def test_pendulum_collocation(control_type, integration_rule, objective, assume_phase_dynamics):
+def test_pendulum_collocation(control_type, integration_rule, objective, phase_dynamics):
     from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -298,7 +302,7 @@ def test_pendulum_collocation(control_type, integration_rule, objective, assume_
                 objective=objective,
                 control_type=control_type,
                 ode_solver=OdeSolver.COLLOCATION(),
-                assume_phase_dynamics=assume_phase_dynamics,
+                phase_dynamics=phase_dynamics,
             )
         return
 
@@ -309,7 +313,7 @@ def test_pendulum_collocation(control_type, integration_rule, objective, assume_
         objective=objective,
         control_type=control_type,
         ode_solver=OdeSolver.COLLOCATION(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
     solver = Solver.IPOPT()
     solver.set_maximum_iterations(5)
@@ -345,7 +349,7 @@ def test_pendulum_collocation(control_type, integration_rule, objective, assume_
                 np.testing.assert_almost_equal(j_printed, 12.336208562756564)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize(
     "objective",
     ["torque", "qdot"],
@@ -362,7 +366,7 @@ def test_pendulum_collocation(control_type, integration_rule, objective, assume_
         QuadratureRule.TRAPEZOIDAL,
     ],
 )
-def test_pendulum_target(control_type, integration_rule, objective, assume_phase_dynamics):
+def test_pendulum_target(control_type, integration_rule, objective, phase_dynamics):
     from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -506,6 +510,9 @@ def test_pendulum_target(control_type, integration_rule, objective, assume_phase
             ]
         )
 
+    if integration_rule in (QuadratureRule.APPROXIMATE_TRAPEZOIDAL, QuadratureRule.TRAPEZOIDAL):
+        target = np.concatenate((target, np.zeros((2, 1))), axis=1)
+
     ocp = prepare_ocp(
         biorbd_model_path=bioptim_folder + "/models/pendulum.bioMod",
         n_shooting=30,
@@ -513,7 +520,7 @@ def test_pendulum_target(control_type, integration_rule, objective, assume_phase
         objective=objective,
         control_type=control_type,
         target=target,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
 
     solver = Solver.IPOPT()
@@ -563,8 +570,8 @@ def test_pendulum_target(control_type, integration_rule, objective, assume_phase
                 np.testing.assert_almost_equal(j_printed, 79.20445223932471, decimal=5)
         elif control_type == ControlType.LINEAR_CONTINUOUS:
             if objective == "torque":
-                np.testing.assert_almost_equal(f[0, 0], 48.842983152427955)
-                np.testing.assert_almost_equal(j_printed, 48.842983152427955)
+                np.testing.assert_almost_equal(f[0, 0], 48.49207210991624)
+                np.testing.assert_almost_equal(j_printed, 48.49207210991624)
             else:
                 np.testing.assert_almost_equal(f[0, 0], 47.038431660223246)
                 np.testing.assert_almost_equal(j_printed, 47.038431660223246)
@@ -585,14 +592,14 @@ def test_pendulum_target(control_type, integration_rule, objective, assume_phase
                 np.testing.assert_almost_equal(j_printed, 33.46130228109848)
         elif control_type == ControlType.LINEAR_CONTINUOUS:
             if objective == "torque":
-                np.testing.assert_almost_equal(f[0, 0], 48.842983152427955)
-                np.testing.assert_almost_equal(j_printed, 48.842983152427955)
+                np.testing.assert_almost_equal(f[0, 0], 43.72737954458251)
+                np.testing.assert_almost_equal(j_printed, 43.72737954458251)
             else:
-                np.testing.assert_almost_equal(f[0, 0], 55.5377703306112)
-                np.testing.assert_almost_equal(j_printed, 55.5377703306112)
+                np.testing.assert_almost_equal(f[0, 0], 22.03942046815059)
+                np.testing.assert_almost_equal(j_printed, 22.03942046815059)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize(
     "integration_rule",
     [
@@ -601,7 +608,7 @@ def test_pendulum_target(control_type, integration_rule, objective, assume_phase
         QuadratureRule.TRAPEZOIDAL,
     ],
 )
-def test_error_mayer_trapz(integration_rule, assume_phase_dynamics):
+def test_error_mayer_trapz(integration_rule, phase_dynamics):
     from bioptim.examples.getting_started import pendulum as ocp_module
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
@@ -617,5 +624,5 @@ def test_error_mayer_trapz(integration_rule, assume_phase_dynamics):
             integration_rule=integration_rule,
             objective="mayer",
             control_type=ControlType.LINEAR_CONTINUOUS,
-            assume_phase_dynamics=assume_phase_dynamics,
+            phase_dynamics=phase_dynamics,
         )

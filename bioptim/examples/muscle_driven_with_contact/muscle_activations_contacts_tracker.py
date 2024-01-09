@@ -20,6 +20,7 @@ from bioptim import (
     InitialGuessList,
     OdeSolver,
     Solver,
+    SolutionMerge,
 )
 
 # Load track_segment_on_rt
@@ -88,7 +89,6 @@ def prepare_ocp(
         u_bounds,
         objective_functions=objective_functions,
         ode_solver=ode_solver,
-        assume_phase_dynamics=True,
     )
 
 
@@ -107,7 +107,11 @@ def main():
         max_bound=np.inf,
     )
     sol = ocp_to_track.solve()
-    q, qdot, tau, mus = sol.states["q"], sol.states["qdot"], sol.controls["tau"], sol.controls["muscles"]
+
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau, mus = states["q"], states["qdot"], controls["tau"], controls["muscles"]
+
     x = np.concatenate((q, qdot))
     u = np.concatenate((tau, mus))
     contact_forces_ref = np.array(ocp_to_track.nlp[0].contact_forces_func(x[:, :-1], u[:, :-1], []))

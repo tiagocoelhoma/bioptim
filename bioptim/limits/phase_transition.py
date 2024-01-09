@@ -36,8 +36,6 @@ class PhaseTransition(MultinodePenalty):
         The delta time
     node_idx: int
         The index of the node in nlp pre
-    transition: bool
-        The nature of the cost function is transition
     penalty_type: PenaltyType
         If the penalty is from the user or from bioptim (implicit or internal)
     """
@@ -52,12 +50,16 @@ class PhaseTransition(MultinodePenalty):
         max_bound: float = 0,
         **params: Any,
     ):
+        # TODO: @pariterre: where did phase_post go !?
+
         if not isinstance(transition, PhaseTransitionFcn):
             custom_function = transition
             transition = PhaseTransitionFcn.CUSTOM
         super(PhaseTransition, self).__init__(
             PhaseTransitionFcn,
-            nodes_phase=(-1, 0) if transition == transition.CYCLIC else (phase_pre_idx, phase_pre_idx + 1),
+            nodes_phase=(-1, 0)
+            if transition in [transition.CYCLIC, transition.COVARIANCE_CYCLIC]
+            else (phase_pre_idx, phase_pre_idx + 1),
             nodes=(Node.END, Node.START),
             multinode_penalty=transition,
             custom_function=custom_function,
@@ -69,7 +71,6 @@ class PhaseTransition(MultinodePenalty):
         self.max_bound = max_bound
         self.bounds = Bounds("phase_transition", interpolation=InterpolationType.CONSTANT)
         self.node = Node.TRANSITION
-        self.transition = True
         self.quadratic = True
 
     def add_or_replace_to_penalty_pool(self, ocp, nlp):
@@ -124,7 +125,7 @@ class PhaseTransitionList(UniquePerPhaseOptionList):
         """
         raise NotImplementedError("Printing of PhaseTransitionList is not ready yet")
 
-    def prepare_phase_transitions(self, ocp, continuity_weight: float = None) -> list:
+    def prepare_phase_transitions(self, ocp) -> list:
         """
         Configure all the phase transitions and put them in a list
 
@@ -140,7 +141,11 @@ class PhaseTransitionList(UniquePerPhaseOptionList):
 
         # By default it assume Continuous. It can be change later
         full_phase_transitions = [
-            PhaseTransition(phase_pre_idx=i, transition=PhaseTransitionFcn.CONTINUOUS, weight=continuity_weight)
+            PhaseTransition(
+                phase_pre_idx=i,
+                transition=PhaseTransitionFcn.CONTINUOUS,
+                weight=ocp.nlp[i].dynamics_type.state_continuity_weight,
+            )
             for i in range(ocp.n_phases - 1)
         ]
 
@@ -259,7 +264,7 @@ class PhaseTransitionFunctions(PenaltyFunctionAbstract):
             The difference between the last and first node after applying the impulse equations
             """
 
-            MultinodePenaltyFunctions.Functions._prepare_controller_cx(controllers)
+            MultinodePenaltyFunctions.Functions._prepare_controller_cx(transition, controllers)
 
             ocp = controllers[0].ocp
             if ocp.nlp[transition.nodes_phase[0]].states.shape != ocp.nlp[transition.nodes_phase[1]].states.shape:
@@ -294,12 +299,13 @@ class PhaseTransitionFunctions(PenaltyFunctionAbstract):
             return func
 
         @staticmethod
-        def covariance_continuous(
+        def covariance_cyclic(
             transition,
             controllers: list[PenaltyController, PenaltyController],
         ):
             """
-            The most common continuity function, that is the covariance before equals covariance after for stochastic ocp
+            The most common continuity function, that is the covariance before equals covariance after
+            for stochastic ocp
 
             Parameters
             ----------
@@ -313,7 +319,30 @@ class PhaseTransitionFunctions(PenaltyFunctionAbstract):
             The difference between the covariance after and before
             """
 
-            return MultinodePenaltyFunctions.Functions.stochastic_equality(transition, controllers, "cov")
+            return MultinodePenaltyFunctions.Functions.algebraic_states_equality(transition, controllers, "cov")
+
+        @staticmethod
+        def covariance_continuous(
+            transition,
+            controllers: list[PenaltyController, PenaltyController],
+        ):
+            """
+            The most common continuity function, that is the covariance before equals covariance after
+            for stochastic ocp
+
+            Parameters
+            ----------
+            transition : PhaseTransition
+                A reference to the phase transition
+            controllers: list[PenaltyController, PenaltyController]
+                    The penalty node elements
+
+            Returns
+            -------
+            The difference between the covariance after and before
+            """
+
+            return MultinodePenaltyFunctions.Functions.algebraic_states_equality(transition, controllers, "cov")
 
 
 class PhaseTransitionFcn(FcnEnum):
@@ -325,6 +354,7 @@ class PhaseTransitionFcn(FcnEnum):
     DISCONTINUOUS = (PhaseTransitionFunctions.Functions.discontinuous,)
     IMPACT = (PhaseTransitionFunctions.Functions.impact,)
     CYCLIC = (PhaseTransitionFunctions.Functions.cyclic,)
+    COVARIANCE_CYCLIC = (PhaseTransitionFunctions.Functions.covariance_cyclic,)
     COVARIANCE_CONTINUOUS = (PhaseTransitionFunctions.Functions.covariance_continuous,)
     CUSTOM = (MultinodePenaltyFunctions.Functions.custom,)
 

@@ -9,8 +9,9 @@ from .optimal_control_program import OptimalControlProgram
 from ..dynamics.configure_problem import ConfigureProblem, DynamicsList
 from ..dynamics.dynamics_evaluation import DynamicsEvaluation
 from ..dynamics.dynamics_functions import DynamicsFunctions
-from ..interfaces.variational_biomodel import VariationalBioModel
-from ..interfaces.variational_biorbd_model import VariationalBiorbdModel
+from ..models.protocols.variational_biomodel import VariationalBioModel
+from ..models.biorbd.variational_biorbd_model import VariationalBiorbdModel
+from ..misc.enums import ControlType
 from ..limits.constraints import ParameterConstraintList
 from ..limits.multinode_constraint import MultinodeConstraintList
 from ..limits.objective_functions import ParameterObjectiveList
@@ -83,7 +84,11 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
         # Dynamics
         dynamics = DynamicsList()
         expand = True
-        dynamics.add(self.configure_torque_driven, expand=expand)
+        dynamics.add(
+            self.configure_torque_driven,
+            expand_dynamics=expand,
+            skip_continuity=True,
+        )
 
         if qdot_bounds is None or not isinstance(qdot_bounds, BoundsList):
             raise ValueError(
@@ -186,12 +191,11 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
             phase_time=final_time,
             x_init=q_init,
             x_bounds=q_bounds,
-            assume_phase_dynamics=True,
-            skip_continuity=True,
             parameters=parameters,
             parameter_init=parameter_init,
             parameter_bounds=parameter_bounds,
             multinode_constraints=multinode_constraints,
+            control_type=ControlType.LINEAR_CONTINUOUS,
             **kwargs,
         )
 
@@ -238,14 +242,14 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
             Function(
                 "ForwardDyn",
                 [
-                    nlp.time_mx,
+                    vertcat(nlp.time_mx, nlp.dt_mx),
                     nlp.states.scaled.mx_reduced,
                     nlp.controls.scaled.mx_reduced,
                     nlp.parameters.mx,
-                    nlp.stochastic_variables.scaled.mx,
+                    nlp.algebraic_states.scaled.mx,
                 ],
                 [dynamics_dxdt],
-                ["t", "x", "u", "p", "s"],
+                ["t_span", "x", "u", "p", "a"],
                 ["xdot"],
             ),
         )
@@ -382,10 +386,13 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
 
         Parameters
         ----------
-        controllers
+        controllers: list[PenaltyController, PenaltyController, PenaltyController]
+            The controllers of the three nodes considered in the input list.
 
         Returns
         -------
+        The symbolic MX expression of the discrete Euler Lagrange equations
+        for the integration from node i-1, i,to i+1.
 
         """
         if self.bio_model.has_holonomic_constraints:
@@ -420,18 +427,21 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
 
         Parameters
         ----------
-        controllers
-        n_qdot
+        controllers: list[PenaltyController, PenaltyController]
+            The controllers of the two first nodes considered in the input list.
+        n_qdot:
+            The number of generalized velocities
 
         Returns
         -------
+        The symbolic MX expression of the initial continuity constraint for the integration.
 
         """
         if self.bio_model.has_holonomic_constraints:
             return controllers[0].get_nlp.implicit_dynamics_func_first_node[0](
                 controllers[0].get_nlp.dt,
                 controllers[0].states["q"].cx,
-                controllers[0].parameters.cx[:n_qdot],
+                controllers[0].parameters.cx[:n_qdot],  # hardcoded
                 controllers[1].states["q"].cx,
                 controllers[0].controls["tau"].cx,
                 controllers[1].controls["tau"].cx,
@@ -441,7 +451,7 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
             return controllers[0].get_nlp.implicit_dynamics_func_first_node[0](
                 controllers[0].get_nlp.dt,
                 controllers[0].states["q"].cx,
-                controllers[0].parameters.cx[:n_qdot],
+                controllers[0].parameters.cx[:n_qdot],   # hardcoded
                 controllers[1].states["q"].cx,
                 controllers[0].controls["tau"].cx,
                 controllers[1].controls["tau"].cx,
@@ -458,11 +468,14 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
 
         Parameters
         ----------
-        n_qdot
-        controllers
+        controllers: list[PenaltyController, PenaltyController]
+            The controllers of the two first nodes considered in the input list.
+        n_qdot:
+            The number of generalized velocities
 
         Returns
         -------
+        The symbolic MX expression of the final continuity constraint for the integration.
 
         """
         if self.bio_model.has_holonomic_constraints:
@@ -470,7 +483,7 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
                 controllers[0].get_nlp.dt,
                 controllers[0].states["q"].cx,
                 controllers[1].states["q"].cx,
-                controllers[0].parameters.cx[n_qdot : 2 * n_qdot],
+                controllers[0].parameters.cx[n_qdot : 2 * n_qdot],  # hardcoded
                 controllers[0].controls["tau"].cx,
                 controllers[1].controls["tau"].cx,
                 controllers[1].states["lambdas"].cx,
@@ -480,7 +493,7 @@ class VariationalOptimalControlProgram(OptimalControlProgram):
                 controllers[0].get_nlp.dt,
                 controllers[0].states["q"].cx,
                 controllers[1].states["q"].cx,
-                controllers[0].parameters.cx[n_qdot : 2 * n_qdot],
+                controllers[0].parameters.cx[n_qdot : 2 * n_qdot],  # hardcoded
                 controllers[0].controls["tau"].cx,
                 controllers[1].controls["tau"].cx,
             )

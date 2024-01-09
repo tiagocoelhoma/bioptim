@@ -5,7 +5,7 @@ import biorbd_casadi as biorbd
 from casadi import SX, MX, vertcat, jacobian, transpose
 
 from .holonomic_biorbd_model import HolonomicBiorbdModel
-from ..misc.enums import ControlType, QuadratureRule
+from ...misc.enums import ControlType, QuadratureRule
 
 
 class VariationalBiorbdModel(HolonomicBiorbdModel):
@@ -97,7 +97,7 @@ class VariationalBiorbdModel(HolonomicBiorbdModel):
         Scalable Variational Integrators for Constrained Mechanical Systems in Generalized Coordinates.
         IEEE Transactions on Robotics, 25(6), 1249–1261. doi:10.1109/tro.2009.2032955
         """
-        if self.control_type == ControlType.CONSTANT or self.control_type == ControlType.CONSTANT_WITH_LAST_NODE:
+        if self.control_type in (ControlType.CONSTANT, ControlType.CONSTANT_WITH_LAST_NODE):
             return 1 / 2 * control_minus * time_step
 
         elif self.control_type == ControlType.LINEAR_CONTINUOUS:

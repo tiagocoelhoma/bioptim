@@ -4,6 +4,7 @@ import numpy as np
 from casadi import MX, SX, vertcat
 
 from ..misc.mapping import BiMapping
+from ..misc.enums import PhaseDynamics
 
 
 class OptimizationVariable:
@@ -173,7 +174,7 @@ class OptimizationVariableList:
         The number of variables in the list
     """
 
-    def __init__(self, cx_constructor, assume_phase_dynamics):
+    def __init__(self, cx_constructor, phase_dynamics):
         self.elements: list = []
         self.fake_elements: list = []
         self._cx_start: MX | SX | np.ndarray = np.array([])
@@ -183,7 +184,7 @@ class OptimizationVariableList:
         self.mx_reduced: MX = MX.sym("var", 0, 0)
         self.cx_constructor = cx_constructor
         self._current_cx_to_get = 0
-        self.assume_phase_dynamics = assume_phase_dynamics
+        self.phase_dynamics = phase_dynamics
 
     def __getitem__(self, item: int | str | list | range):
         """
@@ -203,7 +204,6 @@ class OptimizationVariableList:
             return self.elements[item]
         elif isinstance(item, str):
             if item == "all":
-                # TODO Benjamin
                 index = []
                 for elt in self.elements:
                     index.extend(list(elt.index))
@@ -237,7 +237,7 @@ class OptimizationVariableList:
     def current_cx_to_get(self, index: int):
         """
         Set the value of current_cx_to_get to corresponding index (cx_start for 0, cx_mid for 1, cx_end for 2) if
-        ocp.assume_phase_dynamics. Otherwise, it is always cx_start
+        phase_dynamics == PhaseDynamics.SHARED_DURING_PHASE. Otherwise, it is always cx_start
 
         Parameters
         ----------
@@ -245,19 +245,15 @@ class OptimizationVariableList:
             The index to set the current cx to
         """
 
-        if not self.assume_phase_dynamics:
-            self._current_cx_to_get = 0
-            return
-
-        if index < 0 or index > 2:
+        if index < -1 or index > 2:
             raise ValueError(
                 "Valid values for setting the cx is 0, 1 or 2. If you reach this error message, you probably tried to "
                 "add more penalties than available in a multinode constraint. You can try to split the constraints "
-                "into more penalties or use assume_phase_dynamics=False."
+                "into more penalties or use phase_dynamics=PhaseDynamics.ONE_PER_NODE"
             )
 
         else:
-            self._current_cx_to_get = index
+            self._current_cx_to_get = index if index != -1 else 2
 
     def append_fake(self, name: str, index: MX | SX | list, mx: MX, bimapping: BiMapping):
         """
@@ -291,12 +287,13 @@ class OptimizationVariableList:
             The MX variable associated with this variable
         """
 
-        if len(cx) < 3:
-            raise NotImplementedError("cx should be of dimension 3 (start, mid, end)")
+        if len(cx) < 2:
+            raise NotImplementedError("cx should be of dimension 2 (start, [mid], end)")
 
         index = range(self._cx_start.shape[0], self._cx_start.shape[0] + cx[0].shape[0])
         self._cx_start = vertcat(self._cx_start, cx[0])
-        self._cx_mid = vertcat(self._cx_mid, cx[(len(cx) - 1) // 2])
+        if len(cx) > 2:
+            self._cx_mid = vertcat(self._cx_mid, cx[(len(cx) - 1) // 2])
         self._cx_end = vertcat(self._cx_end, cx[-1])
 
         for i, c in enumerate(cx[1:-1]):
@@ -327,11 +324,12 @@ class OptimizationVariableList:
             The scaled optimization variable associated with this variable
         """
 
-        if len(cx) < 3:
-            raise NotImplementedError("cx should be of dimension 3 (start, mid, end)")
+        if len(cx) < 2:
+            raise NotImplementedError("cx should be of dimension 2 (start, [mid], end)")
 
         self._cx_start = vertcat(self._cx_start, cx[0])
-        self._cx_mid = vertcat(self._cx_mid, cx[(len(cx) - 1) // 2])
+        if len(cx) > 2:
+            self._cx_mid = vertcat(self._cx_mid, cx[(len(cx) - 1) // 2])
         self._cx_end = vertcat(self._cx_end, cx[-1])
 
         for i, c in enumerate(cx[1:-1]):
@@ -372,7 +370,8 @@ class OptimizationVariableList:
         """
 
         # Recast in CX since if it happens to be empty it is transformed into a DM behind the scene
-        return self.cx_constructor([] if self.shape == 0 else self._cx_start[:, 0])
+        is_empty = self.shape == 0 or np.prod(self._cx_start.shape) == 0
+        return self.cx_constructor([] if is_empty else self._cx_start[:, 0])
 
     @property
     def cx_mid(self):
@@ -381,7 +380,8 @@ class OptimizationVariableList:
         """
 
         # Recast in CX since if it happens to be empty it is transformed into a DM behind the scene
-        return self.cx_constructor([] if self.shape == 0 else self._cx_mid[:, 0])
+        is_empty = self.shape == 0 or np.prod(self._cx_mid.shape) == 0
+        return self.cx_constructor([] if is_empty else self._cx_mid[:, 0])
 
     @property
     def cx_end(self):
@@ -390,7 +390,8 @@ class OptimizationVariableList:
         """
 
         # Recast in CX since if it happens to be empty it is transformed into a DM behind the scene
-        return self.cx_constructor([] if self.shape == 0 else self._cx_end[:, 0])
+        is_empty = self.shape == 0 or np.prod(self._cx_end.shape) == 0
+        return self.cx_constructor([] if is_empty else self._cx_end[:, 0])
 
     @property
     def cx_intermediates_list(self):
@@ -474,13 +475,13 @@ class OptimizationVariableList:
 
 
 class OptimizationVariableContainer:
-    def __init__(self, assume_phase_dynamics: bool):
+    def __init__(self, phase_dynamics: PhaseDynamics):
         """
         This is merely a declaration function, it is mandatory to call initialize_from_shooting to get valid structures
 
         Parameters
         ----------
-        assume_phase_dynamics
+        phase_dynamics: PhaseDynamics
             If the dynamics is the same for all the phase (effectively always setting _node_index to 0 even though the
             user sets it to something else)
         """
@@ -488,7 +489,7 @@ class OptimizationVariableContainer:
         self._unscaled: list[OptimizationVariableList, ...] = []
         self._scaled: list[OptimizationVariableList, ...] = []
         self._node_index = 0  # TODO: [0] to [node_index]
-        self.assume_phase_dynamic = assume_phase_dynamics
+        self.phase_dynamics = phase_dynamics
 
     @property
     def node_index(self):
@@ -496,7 +497,7 @@ class OptimizationVariableContainer:
 
     @node_index.setter
     def node_index(self, value):
-        if not self.assume_phase_dynamic:
+        if self.phase_dynamics == PhaseDynamics.ONE_PER_NODE:
             self._node_index = value
 
     def initialize_from_shooting(self, n_shooting: int, cx: Callable):
@@ -516,8 +517,8 @@ class OptimizationVariableContainer:
 
         for node_index in range(n_shooting):
             self.cx_constructor = cx
-            self._scaled.append(OptimizationVariableList(cx, self.assume_phase_dynamic))
-            self._unscaled.append(OptimizationVariableList(cx, self.assume_phase_dynamic))
+            self._scaled.append(OptimizationVariableList(cx, self.phase_dynamics))
+            self._unscaled.append(OptimizationVariableList(cx, self.phase_dynamics))
 
     def __getitem__(self, item: int | str):
         if isinstance(item, int):
@@ -542,11 +543,14 @@ class OptimizationVariableContainer:
         return self._scaled[self.node_index]
 
     def keys(self):
-        return self.unscaled.keys()
+        return self._unscaled[0].keys()
+
+    def key_index(self, key):
+        return self._unscaled[0][key].index
 
     @property
     def shape(self):
-        return self.unscaled.shape
+        return self._unscaled[0].shape
 
     @property
     def mx(self):
@@ -555,6 +559,10 @@ class OptimizationVariableContainer:
     @property
     def mx_reduced(self):
         return self.unscaled.mx_reduced
+
+    @property
+    def cx(self):
+        return self.unscaled.cx
 
     @property
     def cx_start(self):

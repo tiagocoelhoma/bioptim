@@ -8,6 +8,7 @@ This simple example is a good place to start investigating bioptim as it describ
 During the optimization process, the graphs are updated real-time (even though it is a bit too fast and short to really
 appreciate it). Finally, once it finished optimizing, it animates the model using the optimal solution
 """
+
 import platform
 
 from bioptim import (
@@ -24,6 +25,7 @@ from bioptim import (
     Solver,
     BiorbdModel,
     ControlType,
+    PhaseDynamics,
 )
 
 
@@ -34,7 +36,7 @@ def prepare_ocp(
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
     use_sx: bool = True,
     n_threads: int = 1,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
     control_type: ControlType = ControlType.CONSTANT,
 ) -> OptimalControlProgram:
@@ -55,10 +57,11 @@ def prepare_ocp(
         If the SX variable should be used instead of MX (can be extensive on RAM)
     n_threads: int
         The number of threads to use in the paralleling (1 = no parallel computing)
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     expand_dynamics: bool
         If the dynamics function should be expanded. Please note, this will solve the problem faster, but will slow down
         the declaration of the OCP, so it is a trade-off. Also depending on the solver, it may or may not work
@@ -77,7 +80,7 @@ def prepare_ocp(
     objective_functions = Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau")
 
     # Dynamics
-    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand=expand_dynamics)
+    dynamics = Dynamics(DynamicsFcn.TORQUE_DRIVEN, expand_dynamics=expand_dynamics, phase_dynamics=phase_dynamics)
 
     # Path constraint
     x_bounds = BoundsList()
@@ -115,7 +118,6 @@ def prepare_ocp(
         ode_solver=ode_solver,
         use_sx=use_sx,
         n_threads=n_threads,
-        assume_phase_dynamics=assume_phase_dynamics,
         control_type=control_type,
     )
 
@@ -126,7 +128,7 @@ def main():
     """
 
     # --- Prepare the ocp --- #
-    ocp = prepare_ocp(biorbd_model_path="models/pendulum.bioMod", final_time=1, n_shooting=30, n_threads=2)
+    ocp = prepare_ocp(biorbd_model_path="models/pendulum.bioMod", final_time=1, n_shooting=400, n_threads=2)
 
     # Custom plots
     ocp.add_plot_penalty(CostType.ALL)
@@ -137,13 +139,19 @@ def main():
     # --- Print ocp structure --- #
     ocp.print(to_console=False, to_graph=False)
 
-    # --- Solve the ocp --- #
+    # --- Solve the ocp. Please note that online graphics only works with the Linux operating system --- #
     sol = ocp.solve(Solver.IPOPT(show_online_optim=platform.system() == "Linux"))
-    # sol.graphs(show_bounds=True)
-
-    # --- Show the results in a bioviz animation --- #
     sol.print_cost()
+
+    # --- Show the results (graph or animation) --- #
+    # sol.graphs(show_bounds=True)
     sol.animate(n_frames=100)
+
+    # # --- Save the solution --- #
+    # import pickle
+    # with open("pendulum.pkl", "wb") as file:
+    #     del sol.ocp
+    #     pickle.dump(sol, file)
 
 
 if __name__ == "__main__":

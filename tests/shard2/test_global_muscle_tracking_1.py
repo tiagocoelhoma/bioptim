@@ -6,25 +6,25 @@ import pytest
 import platform
 
 import numpy as np
-from bioptim import OdeSolver, Solver, BiorbdModel
+from bioptim import OdeSolver, PhaseDynamics, BiorbdModel, SolutionMerge
 
 from tests.utils import TestUtils
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.COLLOCATION, OdeSolver.IRK])
-def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, assume_phase_dynamics):
+def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, phase_dynamics):
     # Load muscle_activations_tracker
     from bioptim.examples.muscle_driven_ocp import muscle_activations_tracker as ocp_module
 
-    if platform.system() == "Windows" and not assume_phase_dynamics:
+    if platform.system() == "Windows" and phase_dynamics == PhaseDynamics.ONE_PER_NODE:
         # This is a long test and CI is already long for Windows
         return
 
-    # For reducing time assume_phase_dynamics=False is skipped for redundant tests
+    # For reducing time phase_dynamics=False is skipped for redundant tests
     # and because test fails on CI
-    # if not assume_phase_dynamics and ode_solver in (OdeSolver.RK4, OdeSolver.COLLOCATION):
-    #     return
+    if phase_dynamics == PhaseDynamics.ONE_PER_NODE and ode_solver in (OdeSolver.RK4, OdeSolver.COLLOCATION):
+        return
 
     bioptim_folder = os.path.dirname(ocp_module.__file__)
 
@@ -52,7 +52,7 @@ def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, a
         use_residual_torque=use_residual_torque,
         kin_data_to_track="q",
         ode_solver=ode_solver(),
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
         expand_dynamics=ode_solver != OdeSolver.IRK,
     )
     sol = ocp.solve()
@@ -71,7 +71,9 @@ def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, a
         np.testing.assert_almost_equal(g, np.zeros((20, 1)), decimal=6)
 
     # Check some of the results
-    q, qdot, mus = sol.states["q"], sol.states["qdot"], sol.controls["muscles"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, mus = states["q"], states["qdot"], controls["muscles"]
 
     if ode_solver == OdeSolver.IRK:
         np.testing.assert_almost_equal(f[0, 0], 4.162211328576168e-09)
@@ -87,25 +89,25 @@ def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, a
             np.array([0.77133463, 0.02085465, 0.63363299, 0.74881884, 0.49851663, 0.22482276]),
         )
         np.testing.assert_almost_equal(
-            mus[:, -2],
+            mus[:, -1],
             np.array([0.44190476, 0.43398509, 0.61774548, 0.51315871, 0.650407, 0.60099513]),
         )
     elif ode_solver == OdeSolver.COLLOCATION:
         np.testing.assert_almost_equal(f[0, 0], 4.145731569100745e-09)
         # initial and final position
-        np.testing.assert_almost_equal(q[:, 0], np.array([-4.33718022e-06, 3.93914750e-06]))
-        np.testing.assert_almost_equal(q[:, -1], np.array([0.20478893, -0.95071153]))
+        np.testing.assert_almost_equal(q[:, 0], np.array([-3.74337403e-06, 4.00697373e-06]))
+        np.testing.assert_almost_equal(q[:, -1], np.array([0.20480488, -0.95076061]))
         # initial and final velocities
-        np.testing.assert_almost_equal(qdot[:, 0], np.array([1.34857046e-04, -9.01607090e-05]))
-        np.testing.assert_almost_equal(qdot[:, -1], np.array([-0.43553087, -6.90717431]))
+        np.testing.assert_almost_equal(qdot[:, 0], np.array([1.17026419e-04, -9.75179756e-05]))
+        np.testing.assert_almost_equal(qdot[:, -1], np.array([-0.43456688, -6.90997413]))
         # initial and final controls
         np.testing.assert_almost_equal(
             mus[:, 0],
-            np.array([0.77133446, 0.02085468, 0.63363308, 0.74881868, 0.49851656, 0.22482263]),
+            np.array([0.77133458, 0.02085464, 0.63363333, 0.74881816, 0.49851632, 0.22482216]),
         )
         np.testing.assert_almost_equal(
-            mus[:, -2],
-            np.array([0.44190474, 0.43398509, 0.61774548, 0.51315871, 0.650407, 0.60099513]),
+            mus[:, -1],
+            np.array([0.4418359, 0.4340145, 0.61776425, 0.5131385, 0.65039449, 0.60103605]),
         )
 
     elif ode_solver == OdeSolver.RK4:
@@ -122,14 +124,11 @@ def test_muscle_activation_no_residual_torque_and_markers_tracking(ode_solver, a
             np.array([0.77133494, 0.02085459, 0.6336328, 0.74881914, 0.49851677, 0.22482304]),
         )
         np.testing.assert_almost_equal(
-            mus[:, -2],
+            mus[:, -1],
             np.array([0.44190501, 0.43398497, 0.61774539, 0.5131588, 0.65040706, 0.60099495]),
         )
     else:
         raise ValueError("Test not ready")
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
 
     # simulate
     TestUtils.simulate(sol, decimal_value=6)

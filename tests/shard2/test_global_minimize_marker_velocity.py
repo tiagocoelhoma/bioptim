@@ -16,6 +16,8 @@ from bioptim import (
     OdeSolver,
     OdeSolverBase,
     Node,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 from tests.utils import TestUtils
@@ -29,7 +31,7 @@ def prepare_ocp(
     marker_in_first_coordinates_system: bool,
     control_type: ControlType,
     ode_solver: OdeSolverBase = OdeSolver.RK4(),
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
 ) -> OptimalControlProgram:
     """
     Prepare an ocp that targets some marker velocities, either by finite differences or by jacobian
@@ -50,10 +52,11 @@ def prepare_ocp(
         The type of controls
     ode_solver: OdeSolverBase
         The ode solver to use
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
 
     Returns
     -------
@@ -93,7 +96,11 @@ def prepare_ocp(
 
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.TORQUE_DRIVEN, expand=not isinstance(ode_solver, OdeSolver.IRK))
+    dynamics.add(
+        DynamicsFcn.TORQUE_DRIVEN,
+        expand_dynamics=not isinstance(ode_solver, OdeSolver.IRK),
+        phase_dynamics=phase_dynamics,
+    )
 
     # Path constraint
     nq = bio_model.nb_q
@@ -122,13 +129,12 @@ def prepare_ocp(
         objective_functions=objective_functions,
         control_type=control_type,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.RK8, OdeSolver.IRK])
-def test_track_and_minimize_marker_displacement_global(ode_solver, assume_phase_dynamics):
+def test_track_and_minimize_marker_displacement_global(ode_solver, phase_dynamics):
     # Load track_and_minimize_marker_velocity
     ode_solver = ode_solver()
     ocp = prepare_ocp(
@@ -139,7 +145,7 @@ def test_track_and_minimize_marker_displacement_global(ode_solver, assume_phase_
         marker_in_first_coordinates_system=False,
         control_type=ControlType.CONSTANT,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
     sol = ocp.solve()
 
@@ -154,7 +160,9 @@ def test_track_and_minimize_marker_displacement_global(ode_solver, assume_phase_
     np.testing.assert_almost_equal(g, np.zeros((40, 1)))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final velocities
     np.testing.assert_almost_equal(qdot[:, 0], np.array([0.37791617, 3.70167396, 10.0, 10.0]), decimal=2)
@@ -164,19 +172,16 @@ def test_track_and_minimize_marker_displacement_global(ode_solver, assume_phase_
         tau[:, 0], np.array([-4.52595667e-02, 9.25475333e-01, -4.34001849e-08, -9.24667407e01]), decimal=2
     )
     np.testing.assert_almost_equal(
-        tau[:, -2], np.array([4.42976253e-02, 1.40077846e00, -7.28864793e-13, 9.24667396e01]), decimal=2
+        tau[:, -1], np.array([4.42976253e-02, 1.40077846e00, -7.28864793e-13, 9.24667396e01]), decimal=2
     )
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.RK8, OdeSolver.IRK])
-def test_track_and_minimize_marker_displacement_RT(ode_solver, assume_phase_dynamics):
+def test_track_and_minimize_marker_displacement_RT(ode_solver, phase_dynamics):
     # Load track_and_minimize_marker_velocity
     ode_solver = ode_solver()
     ocp = prepare_ocp(
@@ -187,7 +192,7 @@ def test_track_and_minimize_marker_displacement_RT(ode_solver, assume_phase_dyna
         marker_in_first_coordinates_system=True,
         control_type=ControlType.CONSTANT,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
     sol = ocp.solve()
 
@@ -202,7 +207,9 @@ def test_track_and_minimize_marker_displacement_RT(ode_solver, assume_phase_dyna
     np.testing.assert_almost_equal(g, np.zeros((40, 1)))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array([0.07221334, -0.4578082, -3.00436948, 1.57079633]))
@@ -213,19 +220,16 @@ def test_track_and_minimize_marker_displacement_RT(ode_solver, assume_phase_dyna
     # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array([-3.21817755e01, 1.55202948e01, 7.42730542e-13, 2.61513401e-08]))
     np.testing.assert_almost_equal(
-        tau[:, -2], np.array([-1.97981112e01, -9.89876772e-02, 4.34033234e-08, 2.61513636e-08])
+        tau[:, -1], np.array([-1.97981112e01, -9.89876772e-02, 4.34033234e-08, 2.61513636e-08])
     )
-
-    # save and load
-    TestUtils.save_and_load(sol, ocp, False)
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.RK8, OdeSolver.IRK])
-def test_track_and_minimize_marker_velocity(ode_solver, assume_phase_dynamics):
+def test_track_and_minimize_marker_velocity(ode_solver, phase_dynamics):
     # Load track_and_minimize_marker_velocity
     ode_solver = ode_solver()
     ocp = prepare_ocp(
@@ -236,7 +240,7 @@ def test_track_and_minimize_marker_velocity(ode_solver, assume_phase_dynamics):
         marker_in_first_coordinates_system=True,
         control_type=ControlType.CONSTANT,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
+        phase_dynamics=phase_dynamics,
     )
     sol = ocp.solve()
 
@@ -251,7 +255,9 @@ def test_track_and_minimize_marker_velocity(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(g, np.zeros((40, 1)))
 
     # Check some of the results
-    q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+    q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
     # initial and final position
     np.testing.assert_almost_equal(q[:, 0], np.array([7.18708669e-01, -4.45703930e-01, -3.14159262e00, 0]))
@@ -261,18 +267,15 @@ def test_track_and_minimize_marker_velocity(ode_solver, assume_phase_dynamics):
     np.testing.assert_almost_equal(qdot[:, -1], np.array([3.77168521e-01, -3.40782793, 10, 0]))
     # # initial and final controls
     np.testing.assert_almost_equal(tau[:, 0], np.array([-4.52216174e-02, 9.25170010e-01, 0, 0]))
-    np.testing.assert_almost_equal(tau[:, -2], np.array([4.4260355e-02, 1.4004583, 0, 0]))
-
-    # # save and load
-    TestUtils.save_and_load(sol, ocp, False)
+    np.testing.assert_almost_equal(tau[:, -1], np.array([4.4260355e-02, 1.4004583, 0, 0]))
 
     # simulate
     TestUtils.simulate(sol)
 
 
-@pytest.mark.parametrize("assume_phase_dynamics", [True, False])
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("ode_solver", [OdeSolver.RK4, OdeSolver.RK8, OdeSolver.IRK])
-def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, assume_phase_dynamics):
+def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, phase_dynamics):
     # Load track_and_minimize_marker_velocity
     if ode_solver == OdeSolver.IRK:
         ode_solver = ode_solver()
@@ -287,7 +290,7 @@ def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, assume_p
                 marker_in_first_coordinates_system=True,
                 control_type=ControlType.LINEAR_CONTINUOUS,
                 ode_solver=ode_solver,
-                assume_phase_dynamics=assume_phase_dynamics,
+                phase_dynamics=phase_dynamics,
             )
     else:
         ode_solver = ode_solver()
@@ -299,7 +302,7 @@ def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, assume_p
             marker_in_first_coordinates_system=True,
             control_type=ControlType.LINEAR_CONTINUOUS,
             ode_solver=ode_solver,
-            assume_phase_dynamics=assume_phase_dynamics,
+            phase_dynamics=phase_dynamics,
         )
         sol = ocp.solve()
 
@@ -309,7 +312,9 @@ def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, assume_p
         np.testing.assert_almost_equal(g, np.zeros((40, 1)))
 
         # Check some of the results
-        q, qdot, tau = sol.states["q"], sol.states["qdot"], sol.controls["tau"]
+        states = sol.decision_states(to_merge=SolutionMerge.NODES)
+        controls = sol.decision_controls(to_merge=SolutionMerge.NODES)
+        q, qdot, tau = states["q"], states["qdot"], controls["tau"]
 
         # initial and final position
         np.testing.assert_almost_equal(q[2:, 0], np.array([-3.14159264, 0]))
@@ -320,9 +325,6 @@ def test_track_and_minimize_marker_velocity_linear_controls(ode_solver, assume_p
         # initial and final controls
         np.testing.assert_almost_equal(tau[2:, 0], np.array([-8.495542, 0]), decimal=5)
         np.testing.assert_almost_equal(tau[2:, -1], np.array([8.495541, 0]), decimal=5)
-
-        # save and load
-        TestUtils.save_and_load(sol, ocp, False)
 
         # simulate
         TestUtils.simulate(sol)

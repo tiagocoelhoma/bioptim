@@ -32,6 +32,8 @@ from bioptim import (
     Node,
     Solver,
     RigidBodyDynamics,
+    PhaseDynamics,
+    SolutionMerge,
 )
 
 from bioptim.optimization.optimization_variable import OptimizationVariableContainer
@@ -42,7 +44,7 @@ def generate_data(
     final_time: float,
     n_shooting: int,
     use_residual_torque: bool = True,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
 ) -> tuple:
     """
     Generate random data. If np.random.seed is defined before, it will always return the same results
@@ -57,10 +59,11 @@ def generate_data(
         The number of shooting points
     use_residual_torque: bool
         If residual torque are present or not in the dynamics
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
 
     Returns
     -------
@@ -75,7 +78,7 @@ def generate_data(
     n_mus = bio_model.nb_muscles
     dt = final_time / n_shooting
 
-    nlp = NonLinearProgram(assume_phase_dynamics=assume_phase_dynamics)
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
     nlp.model = bio_model
     nlp.variable_mappings = {
         "q": BiMapping(range(n_q), range(n_q)),
@@ -95,9 +98,9 @@ def generate_data(
     symbolic_parameters = MX.sym("params", 0, 0)
     markers_func = biorbd.to_casadi_func("ForwardKin", bio_model.markers, symbolic_q)
 
-    nlp.states = OptimizationVariableContainer(assume_phase_dynamics=assume_phase_dynamics)
-    nlp.states_dot = OptimizationVariableContainer(assume_phase_dynamics=assume_phase_dynamics)
-    nlp.controls = OptimizationVariableContainer(assume_phase_dynamics=assume_phase_dynamics)
+    nlp.states = OptimizationVariableContainer(phase_dynamics=phase_dynamics)
+    nlp.states_dot = OptimizationVariableContainer(phase_dynamics=phase_dynamics)
+    nlp.controls = OptimizationVariableContainer(phase_dynamics=phase_dynamics)
     nlp.states.initialize_from_shooting(n_shooting, MX)
     nlp.states_dot.initialize_from_shooting(n_shooting, MX)
     nlp.controls.initialize_from_shooting(n_shooting, MX)
@@ -169,7 +172,7 @@ def generate_data(
             states=symbolic_states,
             controls=symbolic_controls,
             parameters=symbolic_parameters,
-            stochastic_variables=MX(),
+            algebraic_states=MX(),
             nlp=nlp,
             with_contact=False,
             rigidbody_dynamics=RigidBodyDynamics.ODE,
@@ -220,7 +223,7 @@ def prepare_ocp(
     use_residual_torque: bool = True,
     ode_solver: OdeSolverBase = OdeSolver.COLLOCATION(),
     n_threads: int = 1,
-    assume_phase_dynamics: bool = True,
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     """
@@ -248,10 +251,11 @@ def prepare_ocp(
         The ode solver to use
     n_threads: int
         The number of threads
-    assume_phase_dynamics: bool
-        If the dynamics equation within a phase is unique or changes at each node. True is much faster, but lacks the
-        capability to have changing dynamics within a phase. A good example of when False should be used is when
-        different external forces are applied at each node
+    phase_dynamics: PhaseDynamics
+        If the dynamics equation within a phase is unique or changes at each node.
+        PhaseDynamics.SHARED_DURING_THE_PHASE is much faster, but lacks the capability to have changing dynamics within
+        a phase. A good example of when PhaseDynamics.ONE_PER_NODE should be used is when different external forces
+        are applied at each node
     expand_dynamics: bool
         If the dynamics function should be expanded. Please note, this will solve the problem faster, but will slow down
         the declaration of the OCP, so it is a trade-off. Also depending on the solver, it may or may not work
@@ -272,13 +276,20 @@ def prepare_ocp(
     if kin_data_to_track == "markers":
         objective_functions.add(ObjectiveFcn.Lagrange.TRACK_MARKERS, weight=100, target=markers_ref[:, :, :-1])
     elif kin_data_to_track == "q":
-        objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="q", weight=100, target=q_ref, node=Node.ALL)
+        node = Node.ALL_SHOOTING if type(ode_solver) == OdeSolver.COLLOCATION else Node.ALL
+        ref = q_ref[:, :-1] if type(ode_solver) == OdeSolver.COLLOCATION else q_ref
+        objective_functions.add(ObjectiveFcn.Lagrange.TRACK_STATE, key="q", weight=100, target=ref, node=node)
     else:
         raise RuntimeError("Wrong choice of kin_data_to_track")
 
     # Dynamics
     dynamics = DynamicsList()
-    dynamics.add(DynamicsFcn.MUSCLE_DRIVEN, with_residual_torque=use_residual_torque, expand=expand_dynamics)
+    dynamics.add(
+        DynamicsFcn.MUSCLE_DRIVEN,
+        with_residual_torque=use_residual_torque,
+        expand_dynamics=expand_dynamics,
+        phase_dynamics=phase_dynamics,
+    )
 
     # Path constraint
     x_bounds = BoundsList()
@@ -308,7 +319,6 @@ def prepare_ocp(
         objective_functions=objective_functions,
         ode_solver=ode_solver,
         n_threads=n_threads,
-        assume_phase_dynamics=assume_phase_dynamics,
     )
 
 
@@ -348,7 +358,8 @@ def main():
     sol = ocp.solve(Solver.IPOPT(show_online_optim=platform.system() == "Linux"))
 
     # --- Show the results --- #
-    q = sol.states["q"]
+    states = sol.decision_states(to_merge=SolutionMerge.NODES)
+    q = states["q"]
     n_q = ocp.nlp[0].model.nb_q
     n_mark = ocp.nlp[0].model.nb_markers
     n_frames = q.shape[1]
