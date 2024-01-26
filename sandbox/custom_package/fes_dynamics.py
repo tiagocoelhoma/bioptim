@@ -44,18 +44,14 @@ class DynamicsDingModelPulseWidth:
             **extra_parameters: list[MX] | list[SX]
     ) -> DynamicsEvaluation:
 
-        # STATE VARIABLES
         q = DynamicsFunctions.get(nlp.states["q"], states)
         qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
         cn = DynamicsFunctions.get(nlp.states["cn"], states)
         f = DynamicsFunctions.get(nlp.states["f"], states)
-        # CONTROL VARIABLES
         joints_tau = DynamicsFunctions.get(nlp.controls["tau"], controls)
-        # Access the available data from extra_arguments
         phase_index = extra_parameters.get('phase_index')
         stim = extra_parameters.get('stim')
         t_phase = extra_parameters.get('t_phase')
-        # retrieve time
         t = time
 
         # DYNAMICS
@@ -79,11 +75,8 @@ class DynamicsDingModelPulseWidth:
         f_dot = a * (cn / (km + cn)) - (f / (tau1 + tau2 * (cn / (km + cn))))
 
         muscles_tau = nlp.model.muscle_joint_torque_from_muscle_forces(f, q, qdot)
-        # todo: question on how contact force is going to influence
         if with_contact:
             ddq = nlp.model.constrained_forward_dynamics(q, qdot, joints_tau + muscles_tau)
-            # ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
-            # ddq = DynamicsFunctions.forward_dynamics(nlp, q, qdot, joints_tau + muscles_tau, with_contact)
         else:
             ddq = nlp.model.forward_dynamics(q, qdot, joints_tau + muscles_tau)
 
@@ -154,7 +147,4 @@ class DynamicsDingModelPulseWidth:
 
 
 class FesDynamicsFcn(FcnEnum):
-    """
-    Selection of valid dynamics functions
-    """
     FES_DRIVEN = (DynamicsDingModelPulseWidth.configure_fes_dynamics,)
