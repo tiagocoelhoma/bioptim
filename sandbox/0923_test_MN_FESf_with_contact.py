@@ -1,99 +1,173 @@
+"""
+
+"""
 import numpy as np
-import biorbd as brbd
-from bioptim.limits.path_conditions import InitialGuessList
+from casadi import MX
 
 from bioptim import (
     BiorbdModel,
-    Dynamics,
-    DynamicsFcn,
-    ObjectiveFcn,
-    BoundsList,
-    Solver,
-    PhaseDynamics,
-    ObjectiveList,
     OptimalControlProgram,
-    OdeSolverBase,
+    DynamicsList,
+    ObjectiveList,
+    ObjectiveFcn,
+    ConstraintList,
+    BoundsList,
     OdeSolver,
+    OdeSolverBase,
+    Node,
+    Solver,
+    InitialGuessList,
+    PhaseDynamics,
 )
 
+from custom_package.fes_dynamics import FesDynamicsFcn
+from custom_package.fes_objectives import FesObjective
+from custom_package.fes_plotting import fes_plot_callback
+
+# PROBLEM PARAMETERS
+f = 50  # stimulation frequency in Hertz
+t_phase = round(1 / f, 3)  # period a stimulation pulse
+n_nodes = 2
+f_min, f_max, f_init = 0, 1000, 0
+cn_min, cn_max, cn_init = 0.0, 1.4, 0.0
+tau_min, tau_max, tau_init = -0.00, 0.00, 0.0
+fes_min, fes_max, fes_init = 0.000086, 0.0012, 0.000086
+ascale_min, ascale_max, ascale_init = 500, 500000, 1000
+t_stim = 25 * t_phase
+
+
 def prepare_ocp(
-        model_path,
-        n_shooting,
-        stim_duration,
-        max_joint_torque,
-        phase_dynamics=PhaseDynamics.SHARED_DURING_THE_PHASE,
-        expand_dynamics=True,
-        with_residual_torque=False,
+        biorbd_model_path: str,
         ode_solver: OdeSolverBase = OdeSolver.RK4(),
-):
-    model = BiorbdModel(model_path)
-    dynamics = Dynamics(DynamicsFcn.MUSCLE_DRIVEN,
-                        expand_dynamics=expand_dynamics,
-                        with_residual_torque=with_residual_torque,
-                        phase_dynamics=phase_dynamics,
-                        with_contact=True)
+        phase_period: float = 0,
+        n_phase: int = 0,
+        n_shooting: int = 0,
+        phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
+) -> OptimalControlProgram:
 
+    stim = [1] * n_phase
+    bio_model = tuple(BiorbdModel(biorbd_model_path) for _ in range(n_phase))
+    n_shooting = tuple(n_shooting for _ in range(n_phase))
+    final_time = [phase_period] * n_phase
+
+    dynamics = DynamicsList()
+    for phase_index in range(n_phase):
+        extra_parameters = {'phase_index': phase_index,
+                            'stim': stim,
+                            't_phase': t_phase,
+                            }
+        dynamics.add(FesDynamicsFcn.FES_DRIVEN,
+                     expand=False,
+                     with_contact=True,
+                     phase_dynamics=phase_dynamics,
+                     **extra_parameters)
+
+    # Constraints
+    constraints = ConstraintList()
+    # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
+    for i in range(n_phase):
+        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1, phase=i)
+        objective_functions.add(ObjectiveFcn.Lagrange.SUPERIMPOSE_MARKERS,
+                                first_marker="target",
+                                second_marker="R.Shank.Lower",
+                                weight=1e4,
+                                phase=i)
+        objective_functions.add(
+            FesObjective.custom_func_track_torque,
+            custom_type=ObjectiveFcn.Mayer,
+            node=Node.ALL_SHOOTING,
+            # all node expect the last one (Node.END) as this is related to the control i think.
+            target=np.ones((bio_model[i].nb_tau, n_shooting[i])) * 50.0,  # automatically handled for every cost functions
+            quadratic=True,
+            weight=1e3,
+            phase=i,
+        )
+    objective_functions.add(ObjectiveFcn.Lagrange.TRACK_CONTACT_FORCES, target=[1000], weight=1e4)
 
-    x_bound = BoundsList()
-    x_bound["q"] = model.bounds_from_ranges("q")
-    x_bound["qdot"] = model.bounds_from_ranges("qdot")
 
-    u_bound = BoundsList()
-    if not with_residual_torque:
-        max_joint_torque = 0
-    u_bound["tau"] = ([-max_joint_torque] * model.nb_tau,
-                      [max_joint_torque] * model.nb_tau)
-    muscle_min, muscle_max, muscle_init = 0.0, 1.0, 0.5
-    u_bound["muscles"] = ([muscle_min] * model.nb_muscles,
-                          [muscle_max] * model.nb_muscles)
+    # Path constraint
+    x_bounds = BoundsList()
+    for phase_index in range(n_phase):
+        x_bounds.add("q", bounds=bio_model[phase_index].bounds_from_ranges("q"), phase=phase_index)
+        x_bounds.add("qdot", bounds=bio_model[phase_index].bounds_from_ranges("qdot"), phase=phase_index)
+        x_bounds.add("cn",
+                     min_bound=[cn_min] * bio_model[phase_index].nb_muscles,
+                     max_bound=[cn_max] * bio_model[phase_index].nb_muscles,
+                     phase=phase_index)
+        x_bounds.add("f",
+                     min_bound=[f_min] * bio_model[phase_index].nb_muscles,
+                     max_bound=[f_max] * bio_model[phase_index].nb_muscles,
+                     phase=phase_index)
+        x_bounds.add("t",
+                     min_bound=[phase_period * (phase_index - 1)] * bio_model[phase_index].nb_muscles,
+                     max_bound=[phase_period * phase_index] * bio_model[phase_index].nb_muscles,
+                     phase=phase_index)
+    # set to a steady position in the beginning with no forces (starting node @ phase 0)
+    x_bounds[0]["f"][:, [0]] = 0
+    x_bounds[0]["cn"][:, [0]] = 0
+    x_bounds[0]["q"][:, [0]] = x_bounds[0]["q"].min[0][0]
+
     x_init = InitialGuessList()
+
+    # Define control path constraint
+    u_bounds = BoundsList()
+    for i in range(n_phase):
+        u_bounds.add("tau",
+                     min_bound=[tau_min] * bio_model[i].nb_tau,
+                     max_bound=[tau_max] * bio_model[i].nb_tau,
+                     phase=i)
+        u_bounds.add("pw",
+                     min_bound=[fes_min] * bio_model[i].nb_muscles,
+                     max_bound=[fes_max] * bio_model[i].nb_muscles,
+                     phase=i)
+    u_bounds[0]["tau"][:, [0]] = 0
+    u_bounds[0]["pw"][:, [0]] = 0
+
     u_init = InitialGuessList()
+    u_init.add("tau", [tau_init] * bio_model[0].nb_tau, phase=0)
+    u_init.add("pw", [fes_init] * bio_model[0].nb_muscles, phase=0)
 
     ocp = OptimalControlProgram(
-        model,
+        bio_model,
         dynamics,
         n_shooting,
-        stim_duration,
-        objective_functions=objective_functions,
-        x_bounds=x_bound,
-        u_bounds=u_bound,
+        final_time,
+        x_bounds=x_bounds,
+        u_bounds=u_bounds,
         x_init=x_init,
         u_init=u_init,
+        objective_functions=objective_functions,
+        constraints=constraints,
         ode_solver=ode_solver,
-        n_threads=14,
+        n_threads=10,
     )
 
-    # numerical_model = brbd.Model(model_path)
-    # ocp.add_plot(
-    #     "Torque develop on the gear crank",
-    #     lambda t0, phases_dt, node_idx, x, u, p, a: custom_plot_callback(x, u, numerical_model),
-    #     plot_type=PlotType.INTEGRATED,
-    # )
+    # numerical_model = biorbd.Model(biorbd_model_path)
+    # for i in range(n_phase + n_phase_off):
+    #     ocp.add_plot("Muscular joint torque",
+    #                  lambda t, x, u, p, s: fes_plot_callback(x, numerical_model),
+    #                  plot_type=PlotType.INTEGRATED,
+    #                  phase=i)
     return ocp
 
 
 def main():
-    # problem parameters
     model_path = "models/arm26_one_muscle_with_contact.bioMod"
-    max_joint_torque = 0.001
-    stim_duration = 0.5
-    with_residual_torque = True
-    n_shooting = int(10 + stim_duration * 20)
+    n_phases = int(t_stim / t_phase)  # number of stimulation corresponding to phases
 
-    ocp = prepare_ocp(model_path=model_path,
-                      n_shooting=n_shooting,
-                      stim_duration=stim_duration,
-                      max_joint_torque=max_joint_torque,
-                      with_residual_torque=with_residual_torque)
+    ocp = prepare_ocp(biorbd_model_path=model_path,
+                      phase_period=t_phase,
+                      n_shooting=n_nodes,
+                      n_phase=n_phases)
 
-    # Solve the program
-    sol = ocp.solve(solver=Solver.IPOPT(show_online_optim=False, _max_iter=500))
+    sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=500))
+    # sol = ocp.solve()
+    # sol.print_cost()
     sol.graphs()
-    sol.print_cost()
-    sol.animate(n_frames=100)
+    # --- Show results --- #
+    sol.animate()
+    # sol.graphs(show_bounds=True)
 
 
 if __name__ == "__main__":

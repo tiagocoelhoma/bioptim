@@ -19,7 +19,7 @@ from bioptim import (
     CostType,
     MultinodeObjectiveList, PhaseTransitionList, PhaseTransitionFcn, MultinodeConstraintList, MultinodeConstraintFcn,
     NonLinearProgram, DynamicsEvaluation, DynamicsFunctions, ConfigureProblem, Constraint, Axis, InitialGuessList,
-    InterpolationType, ParameterList, ParameterObjectiveList,
+    InterpolationType, ParameterList, ParameterObjectiveList, PhaseDynamics,
 )
 import numpy as np
 
@@ -35,7 +35,6 @@ cn_min, cn_max, cn_init = 0.0, 2.0, 0.0
 tau_min, tau_max, tau_init = -0.0, 0.0, 0.0
 fes_min, fes_max, fes_init = 0.0002, 0.0008, 0.0002  # todo: verificar scala?
 t_stim = 10 * t_phase  # stimulation period (total)
-n_phase_off = 5         # todo: this value should be calculated in regard to the cycling range
 
 
 def prepare_ocp(
@@ -44,86 +43,55 @@ def prepare_ocp(
         phase_period: float = 0,
         n_phase: int = 0,
         n_shooting: int = 0,
-        assume_phase_dynamics: bool = True,
+        phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
 ) -> OptimalControlProgram:
 
-    # Problem parameters and BiorbdModel
-    n_phase_total = n_phase + n_phase_off
-    stim = [1] * n_phase + [0] * n_phase_off
-
-    bio_model = tuple(BiorbdModel(biorbd_model_path) for _ in range(n_phase_total))
-    n_shoot = tuple(n_shooting for _ in range(n_phase_total))
-    final_time = [phase_period] * n_phase_total
+    stim = [1] * n_phase + [0] * n_phase
+    bio_model = tuple(BiorbdModel(biorbd_model_path) for _ in range(n_phase))
+    n_shoot = tuple(n_shooting for _ in range(n_phase))
+    final_time = [phase_period] * n_phase
 
     # Dynamics
     dynamics = DynamicsList()
-    for phase_index in range(n_phase_total):
+    for phase_index in range(n_phase):
         extra_parameters = {'phase_index': phase_index, 'stim': stim, 't_phase': t_phase}
         dynamics.add(FesDynamicsFcn.FES_DRIVEN,
                      expand=False,
+                     with_contact=True,
+                     phase_dynamics=phase_dynamics,
                      **extra_parameters)
 
     # Constraints
     constraints = ConstraintList()
 
-    # Constraints
-    multinode_constraints = MultinodeConstraintList()
-    for i in range(n_phase_total):
-        multinode_constraints.add(
-            MultinodeConstraintFcn.CONTROLS_EQUALITY,
-            nodes_phase=(i, i),
-            nodes=(Node.START, Node.END),
-            key="all",
-        )
-
     # Add objective functions
     objective_functions = ObjectiveList()
-    for i in range(n_phase_total):
-        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=10, phase=i)
-        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=10, phase=i)
-        objective_functions.add(
-            FesObjective.custom_func_track_torque,
-            custom_type=ObjectiveFcn.Mayer,
-            node=Node.ALL_SHOOTING, # all node expect the last one (Node.END) as this is related to the control i think.
-            target=np.ones((bio_model[i].nb_tau, n_shoot[i])) * 1,  # automatically handled for every cost functions
-            quadratic=True,
-            weight=1e10,
-            phase=i,
-        )
+    for i in range(n_phase):
+        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0, phase=i)
+        objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0, phase=i)
+        objective_functions.add(ObjectiveFcn.Lagrange.TRACK_CONTACT_FORCES, target=[20], weight=1e2, phase=i)
+
     # Path constraint
     x_bounds = BoundsList()
-    for i in range(n_phase_total):
+    for i in range(n_phase):
         x_bounds.add("q", bounds=bio_model[i].bounds_from_ranges("q"), phase=i)
         x_bounds.add("qdot", bounds=bio_model[i].bounds_from_ranges("qdot"), phase=i)
-
-        if i == 0:
-            x_bounds.add("cn",
-                         min_bound=[cn_min] * bio_model[i].nb_muscles,
-                         max_bound=[cn_min] * bio_model[i].nb_muscles,
-                         phase=i)
-            x_bounds.add("f",
-                         min_bound=[f_min] * bio_model[i].nb_muscles,
-                         max_bound=[f_min] * bio_model[i].nb_muscles,
-                         phase=i)
-        else:
-            x_bounds.add("cn",
-                         min_bound=[cn_min] * bio_model[i].nb_muscles,
-                         max_bound=[cn_max] * bio_model[i].nb_muscles,
-                         phase=i)
-            x_bounds.add("f",
-                         min_bound=[f_min] * bio_model[i].nb_muscles,
-                         max_bound=[f_max] * bio_model[i].nb_muscles,
-                         phase=i)
+        x_bounds.add("cn",
+                     min_bound=[cn_min] * bio_model[i].nb_muscles,
+                     max_bound=[cn_max] * bio_model[i].nb_muscles,
+                     phase=i)
+        x_bounds.add("f",
+                     min_bound=[f_min] * bio_model[i].nb_muscles,
+                     max_bound=[f_max] * bio_model[i].nb_muscles,
+                     phase=i)
 
     x_init = InitialGuessList()
-    # x_init["q"] = [1.57] * bio_model[0].nb_q
-    # x_init["qdot"] = [0] * bio_model[0].nb_q
     x_init.add("cn", [cn_init] * bio_model[0].nb_muscles)
     x_init.add("f", [f_init] * bio_model[0].nb_muscles)
 
     # Define control path constraint
     u_bounds = BoundsList()
-    for i in range(n_phase_total):
+    for i in range(n_phase):
         u_bounds.add("tau",
                      min_bound=[tau_min] * bio_model[i].nb_tau,
                      max_bound=[tau_max] * bio_model[i].nb_tau,
@@ -131,11 +99,6 @@ def prepare_ocp(
 
     u_init = InitialGuessList()
     u_init.add("tau", [tau_init] * bio_model[0].nb_tau, phase=0)
-
-    # Define phase transitions
-    phase_transitions = PhaseTransitionList()
-    for i in range(n_phase_total - 1):
-        phase_transitions.add(PhaseTransitionFcn.CONTINUOUS, phase_pre_idx=i)
 
     return OptimalControlProgram(
         bio_model,
@@ -148,21 +111,14 @@ def prepare_ocp(
         u_init=u_init,
         objective_functions=objective_functions,
         constraints=constraints,
-        multinode_constraints=multinode_constraints,
-        phase_transitions=phase_transitions,
         ode_solver=ode_solver,
-        assume_phase_dynamics=assume_phase_dynamics,
         n_threads=10,
     )
 
 
 def main():
-    """
-    Defines a multiphase ocp and animate the results
-    """
     # --- Prepare the optimal control program --- #
     model_path = "models/arm26_one_muscle.bioMod"
-    # model_path = "models/leg6of9musc_clean_RF.bioMod"
     n_phases = int(t_stim / t_phase)  # number of stimulation corresponding to phases
 
     ocp = prepare_ocp(biorbd_model_path=model_path,
@@ -176,7 +132,7 @@ def main():
 
     # --- Show results --- #
     # sol.print_cost()
-    # sol.animate()
+    sol.animate()
 
 
 if __name__ == "__main__":
