@@ -113,7 +113,7 @@ def main():
     """
     Prepare and solve and animate a reaching task ocp
     """
-
+    ### The following line is responsible for the plot error in the end if n_shooting = 1. Otherwise, if n_shooting > 1, there is no problem.
     ocp = prepare_ocp(biorbd_model_path="models/arm26.bioMod", final_time=0.2, n_shooting=1, weight=1000, n_phases=10)
 
     # --- Solve the program --- #
