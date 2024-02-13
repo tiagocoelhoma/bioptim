@@ -59,7 +59,7 @@ def test_torque_driven(with_contact, with_external_force, cx, rigidbody_dynamics
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     external_forces = (
         [
@@ -300,7 +300,7 @@ def test_torque_driven_implicit(with_contact, cx, phase_dynamics):
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -374,7 +374,7 @@ def test_torque_driven_soft_contacts_dynamics(with_contact, cx, implicit_contact
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -448,7 +448,7 @@ def test_torque_derivative_driven(with_contact, with_external_force, cx, phase_d
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -680,7 +680,7 @@ def test_torque_derivative_driven_implicit(with_contact, cx, phase_dynamics):
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -786,7 +786,7 @@ def test_torque_derivative_driven_soft_contacts_dynamics(with_contact, cx, impli
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -972,7 +972,7 @@ def test_torque_activation_driven(with_contact, with_external_force, cx, phase_d
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     external_forces = (
         [
@@ -1175,7 +1175,7 @@ def test_torque_activation_driven_with_residual_torque(
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     external_forces = (
         [
@@ -1364,6 +1364,63 @@ def test_torque_activation_driven_with_residual_torque(
 
 @pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
 @pytest.mark.parametrize("cx", [MX, SX])
+def test_torque_driven_free_floating_base(cx, phase_dynamics):
+    # Prepare the program
+    nlp = NonLinearProgram(phase_dynamics=phase_dynamics)
+    nlp.model = BiorbdModel(
+        TestUtils.bioptim_folder() + "/examples/getting_started/models/2segments_4dof_2contacts.bioMod"
+    )
+    nlp.ns = 5
+    nlp.cx = cx
+    nlp.time_mx = MX.sym("time", 1, 1)
+    nlp.dt_mx = MX.sym("dt", 1, 1)
+    nlp.initialize(cx)
+
+    nlp.x_bounds = np.zeros((nlp.model.nb_q * 3, 1))
+    nlp.u_bounds = np.zeros((nlp.model.nb_tau - nlp.model.nb_root, 1))
+    nlp.x_scaling = VariableScalingList()
+    nlp.xdot_scaling = VariableScalingList()
+    nlp.u_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
+
+    ocp = OptimalControlProgram(nlp)
+    nlp.control_type = ControlType.CONSTANT
+    NonLinearProgram.add(
+        ocp,
+        "dynamics_type",
+        Dynamics(DynamicsFcn.TORQUE_DRIVEN_FREE_FLOATING_BASE, expand_dynamics=True, phase_dynamics=phase_dynamics),
+        False,
+    )
+    phase_index = [i for i in range(ocp.n_phases)]
+    NonLinearProgram.add(ocp, "phase_idx", phase_index, False)
+    use_states_from_phase_idx = [i for i in range(ocp.n_phases)]
+    use_states_dot_from_phase_idx = [i for i in range(ocp.n_phases)]
+    use_controls_from_phase_idx = [i for i in range(ocp.n_phases)]
+    NonLinearProgram.add(ocp, "use_states_from_phase_idx", use_states_from_phase_idx, False)
+    NonLinearProgram.add(ocp, "use_states_dot_from_phase_idx", use_states_dot_from_phase_idx, False)
+    NonLinearProgram.add(ocp, "use_controls_from_phase_idx", use_controls_from_phase_idx, False)
+
+    np.random.seed(42)
+
+    # Prepare the dynamics
+    ConfigureProblem.initialize(ocp, nlp)
+
+    # Test the results
+    states = np.random.rand(nlp.states.shape, nlp.ns)
+    controls = np.random.rand(nlp.controls.shape, nlp.ns)
+    params = np.random.rand(nlp.parameters.shape, nlp.ns)
+    algebraic_states = np.random.rand(nlp.algebraic_states.shape, nlp.ns)
+    time = np.random.rand(2, 1)
+    x_out = np.array(nlp.dynamics_func[0](time, states, controls, params, algebraic_states))
+
+    np.testing.assert_almost_equal(
+        x_out[:, 0],
+        [0.61185289, 0.78517596, 0.60754485, 0.80839735, 0.04791036, -9.96778948, -0.01986505, 4.39786051],
+    )
+
+
+@pytest.mark.parametrize("phase_dynamics", [PhaseDynamics.SHARED_DURING_THE_PHASE, PhaseDynamics.ONE_PER_NODE])
+@pytest.mark.parametrize("cx", [MX, SX])
 @pytest.mark.parametrize("with_external_force", [False, True])
 @pytest.mark.parametrize("with_contact", [False, True])
 @pytest.mark.parametrize("with_residual_torque", [False, True])
@@ -1386,7 +1443,7 @@ def test_muscle_driven(
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
     nlp.phase_idx = 0
 
     external_forces = (
@@ -1979,7 +2036,7 @@ def test_joints_acceleration_driven(cx, rigid_body_dynamics, phase_dynamics):
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT
@@ -2063,7 +2120,7 @@ def test_custom_dynamics(with_contact, phase_dynamics):
     nlp.x_scaling = VariableScalingList()
     nlp.xdot_scaling = VariableScalingList()
     nlp.u_scaling = VariableScalingList()
-    nlp.s_scaling = VariableScalingList()
+    nlp.a_scaling = VariableScalingList()
 
     ocp = OptimalControlProgram(nlp)
     nlp.control_type = ControlType.CONSTANT

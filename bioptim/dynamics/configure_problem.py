@@ -299,17 +299,138 @@ class ConfigureProblem:
             )
 
     @staticmethod
+    def torque_driven_free_floating_base(
+        ocp,
+        nlp,
+        with_passive_torque: bool = False,
+        with_ligament: bool = False,
+        with_friction: bool = False,
+    ):
+        """
+        Configure the dynamics for a torque driven program with a free floating base.
+        This version of the torque driven dynamics avoids defining a mapping to force the root to generate null forces and torques.
+        (states are q_root, q_joints, qdot_root, and qdot_joints, controls are tau_joints)
+        Please note that it was not meant to be used with quaternions yet.
+
+        Parameters
+        ----------
+        ocp: OptimalControlProgram
+            A reference to the ocp
+        nlp: NonLinearProgram
+            A reference to the phase
+        with_passive_torque: bool
+            If the dynamic with passive torque should be used
+        with_ligament: bool
+            If the dynamic with ligament should be used
+        with_friction: bool
+            If the dynamic with joint friction should be used (friction = coefficients * qdot)
+        """
+
+        nb_q = nlp.model.nb_q
+        nb_qdot = nlp.model.nb_qdot
+        nb_root = nlp.model.nb_root
+
+        # Declared rigidbody states and controls
+        name_q_roots = [str(i) for i in range(nb_root)]
+        ConfigureProblem.configure_new_variable(
+            "q_roots",
+            name_q_roots,
+            ocp,
+            nlp,
+            as_states=True,
+            as_controls=False,
+            as_states_dot=False,
+        )
+
+        name_q_joints = [str(i) for i in range(nb_root, nb_q)]
+        ConfigureProblem.configure_new_variable(
+            "q_joints",
+            name_q_joints,
+            ocp,
+            nlp,
+            as_states=True,
+            as_controls=False,
+            as_states_dot=False,
+        )
+
+        ConfigureProblem.configure_new_variable(
+            "qdot_roots",
+            name_q_roots,
+            ocp,
+            nlp,
+            as_states=True,
+            as_controls=False,
+            as_states_dot=True,
+        )
+
+        name_qdot_joints = [str(i) for i in range(nb_root, nb_qdot)]
+        ConfigureProblem.configure_new_variable(
+            "qdot_joints",
+            name_qdot_joints,
+            ocp,
+            nlp,
+            as_states=True,
+            as_controls=False,
+            as_states_dot=True,
+        )
+
+        ConfigureProblem.configure_new_variable(
+            "qddot_roots",
+            name_q_roots,
+            ocp,
+            nlp,
+            as_states=False,
+            as_controls=False,
+            as_states_dot=True,
+        )
+
+        ConfigureProblem.configure_new_variable(
+            "qddot_joints",
+            name_qdot_joints,
+            ocp,
+            nlp,
+            as_states=False,
+            as_controls=False,
+            as_states_dot=True,
+        )
+
+        ConfigureProblem.configure_new_variable(
+            "tau_joints",
+            name_qdot_joints,
+            ocp,
+            nlp,
+            as_states=False,
+            as_controls=True,
+            as_states_dot=False,
+        )
+
+        # TODO: add implicit constraints + soft contacts + fatigue
+
+        # Configure the actual ODE of the dynamics
+        if nlp.dynamics_type.dynamic_function:
+            ConfigureProblem.configure_dynamics_function(ocp, nlp, DynamicsFunctions.custom)
+        else:
+            ConfigureProblem.configure_dynamics_function(
+                ocp,
+                nlp,
+                DynamicsFunctions.torque_driven_free_floating_base,
+                with_passive_torque=with_passive_torque,
+                with_ligament=with_ligament,
+                with_friction=with_friction,
+            )
+
+    @staticmethod
     def stochastic_torque_driven(
         ocp,
         nlp,
         problem_type,
         with_contact: bool = False,
-        with_friction: bool = True,
+        with_friction: bool = False,
         with_cholesky: bool = False,
         initial_matrix: DM = None,
     ):
         """
-        Configure the dynamics for a torque driven program (states are q and qdot, controls are tau)
+        Configure the dynamics for a torque driven stochastic program (states are q and qdot, controls are tau)
 
         Parameters
         ----------
@@ -371,6 +492,80 @@ class ConfigureProblem:
             ocp,
             nlp,
             DynamicsFunctions.stochastic_torque_driven,
+            with_contact=with_contact,
+            with_friction=with_friction,
+        )
+
+    @staticmethod
+    def stochastic_torque_driven_free_floating_base(
+        ocp,
+        nlp,
+        problem_type,
+        with_contact: bool = False,
+        with_friction: bool = False,
+        with_cholesky: bool = False,
+        initial_matrix: DM = None,
+    ):
+        """
+        Configure the dynamics for a stochastic torque driven program with a free floating base.
+        (states are q_roots, q_joints, qdot_roots, and qdot_joints, controls are tau_joints)
+
+        Parameters
+        ----------
+        ocp: OptimalControlProgram
+            A reference to the ocp
+        nlp: NonLinearProgram
+            A reference to the phase
+        with_contact: bool
+            If the dynamic with contact should be used
+        with_friction: bool
+            If the dynamic with joint friction should be used (friction = coefficient * qdot)
+        """
+        n_noised_tau = nlp.model.n_noised_controls
+        n_noise = nlp.model.motor_noise_magnitude.shape[0] + nlp.model.sensory_noise_magnitude.shape[0]
+        n_noised_states = nlp.model.n_noised_states
+
+        # Stochastic variables
+        ConfigureProblem.configure_stochastic_k(
+            ocp, nlp, n_noised_controls=n_noised_tau, n_references=nlp.model.n_references
+        )
+        ConfigureProblem.configure_stochastic_ref(ocp, nlp, n_references=nlp.model.n_references)
+        n_collocation_points = 1
+        if isinstance(problem_type, SocpType.COLLOCATION):
+            n_collocation_points += problem_type.polynomial_degree
+        ConfigureProblem.configure_stochastic_m(
+            ocp, nlp, n_noised_states=n_noised_states, n_collocation_points=n_collocation_points
+        )
+
+        if isinstance(problem_type, SocpType.TRAPEZOIDAL_EXPLICIT):
+            if initial_matrix is None:
+                raise RuntimeError(
+                    "The initial value for the covariance matrix must be provided for TRAPEZOIDAL_EXPLICIT"
+                )
+            ConfigureProblem.configure_stochastic_cov_explicit(
+                ocp, nlp, n_noised_states=n_noised_states, initial_matrix=initial_matrix
+            )
+        else:
+            if with_cholesky:
+                ConfigureProblem.configure_stochastic_cholesky_cov(ocp, nlp, n_noised_states=n_noised_states)
+            else:
+                ConfigureProblem.configure_stochastic_cov_implicit(ocp, nlp, n_noised_states=n_noised_states)
+
+        if isinstance(problem_type, SocpType.TRAPEZOIDAL_IMPLICIT):
+            ConfigureProblem.configure_stochastic_a(ocp, nlp, n_noised_states=n_noised_states)
+            ConfigureProblem.configure_stochastic_c(ocp, nlp, n_noised_states=n_noised_states, n_noise=n_noise)
+
+        ConfigureProblem.torque_driven_free_floating_base(
+            ocp=ocp,
+            nlp=nlp,
+            with_contact=with_contact,
+            with_friction=with_friction,
+        )
+
+        ConfigureProblem.configure_dynamics_function(
+            ocp,
+            nlp,
+            DynamicsFunctions.stochastic_torque_driven_free_floating_base,
             with_contact=with_contact,
             with_friction=with_friction,
         )
@@ -879,9 +1074,10 @@ class ConfigureProblem:
         """
         component_list = ["Mx", "My", "Mz", "Fx", "Fy", "Fz"]
 
+        q = nlp.states.mx_reduced[nlp.states["q"].index]
+        qdot = nlp.states.mx_reduced[nlp.states["qdot"].index]
         global_soft_contact_force_func = nlp.model.soft_contact_forces(
-            nlp.states.mx_reduced[nlp.states["q"].index],
-            nlp.states.mx_reduced[nlp.states["qdot"].index],
+            nlp.states["q"].mapping.to_second.map(q), nlp.states["qdot"].mapping.to_second.map(qdot)
         )
         nlp.soft_contact_forces_func = Function(
             "soft_contact_forces_func",
@@ -1576,7 +1772,9 @@ class DynamicsFcn(FcnEnum):
     """
 
     TORQUE_DRIVEN = (ConfigureProblem.torque_driven,)
+    TORQUE_DRIVEN_FREE_FLOATING_BASE = (ConfigureProblem.torque_driven_free_floating_base,)
     STOCHASTIC_TORQUE_DRIVEN = (ConfigureProblem.stochastic_torque_driven,)
+    STOCHASTIC_TORQUE_DRIVEN_FREE_FLOATING_BASE = (ConfigureProblem.stochastic_torque_driven_free_floating_base,)
     TORQUE_DERIVATIVE_DRIVEN = (ConfigureProblem.torque_derivative_driven,)
     TORQUE_ACTIVATIONS_DRIVEN = (ConfigureProblem.torque_activations_driven,)
     JOINTS_ACCELERATION_DRIVEN = (ConfigureProblem.joints_acceleration_driven,)
