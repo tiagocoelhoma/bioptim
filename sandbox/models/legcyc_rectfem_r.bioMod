@@ -1,0 +1,508 @@
+version 4
+
+// File extracted from Models/leg6dof9musc_updt_bckup.osim
+//Publication : Delp, S.L., Loan, J.P., Hoy, M.G., Zajac, F.E., Topp E.L., Rosen, J.M.: An interactive graphics-based model of the lower extremity to study orthopaedic surgical procedures, IEEE Transactions on Biomedical Engineering, vol. 37, pp. 757-767, 1990. Yamaguchi G.T., Zajac F.E.: A planar model of the knee joint to characterize the knee extensor mechanism." J . Biomecl7. vol. 21. pp. 1-10. 1989. Anderson F.C., Pandy M.G.: A dynamic optimization solution for vertical jumping in three dimensions. Computer Methods in Biomechanics and Biomedical Engineering 2:201-231, 1999. Anderson F.C., Pandy M.G.: Dynamic optimization of human walking. Journal of Biomechanical Engineering 123:381-390, 2001.
+//Credit : Delp S.L., Loan J.P., Hoy M.G., Zajac F.E., Topp E.L., Rosen J.M., Thelen D.G., Anderson F.C., Seth A., Reinbolt J.A. Notes: 2D, 6 DOF leg model adpated by Jeff Reinbolt and Ajay Seth based on gait2354.osim Frank C. Anderson, and Scott L. Delp, Stanford University. Lower extremity joint defintions based on Delp et al. (1990). Low back joint and anthropometry based on Anderson and Pandy (1999, 2001). Planar knee model of Yamaguchi and Zajac (1989). Seth replaced tibia translation constraints with a CustomJoint for the knee and removed the patella to eliminate all kinematic constraints; insertions of the quadrucepts are handled with moving points in the tibia frame as defined by Delp 1990. Number of muscles were reduced by Reinbolt and Anderson to improve simulation speed for demonstrations and is not intended to be used in research. License: Creative Commons (CCBY 3.0). You are free to distribute, remix, tweak, and build upon this work, even commercially, as long as you credit us for the original creation. http://creativecommons.org/licenses/by/3.0/
+//Force units : N
+//Length units : meters
+
+// Biomod not include all Osim features as the optimisation is performed on a third part software.
+// The original file contained some of these features, corresponding warnings are shown in the end of the file.
+
+    // vermelho         verde       azul
+    gravity	-9.8066499999999994     0       0
+    //making it reversal. starting from the gear to the hip
+    //it will be necessary to create a contact points in the hip to constraint it from moving
+
+    // CRANKSET
+	segment Gear
+		parent ground
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 -0.0	 -0.0
+		mass	1
+		inertia
+			0.001	0	0
+			0	0.001	0
+			0	0	0.001
+		com	0 0 0
+		meshfile	Geometry/gearSimple.obj
+		meshcolor	1 1 1
+		meshscale	1 1 1
+		rotations z
+		ranges
+		        -10*pi 10*pi
+	endsegment
+	segment distance
+	    parent ground
+	    RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 -0.0	 -0.0
+		meshcolor	1 1 1
+		mesh 0 0 0
+		mesh 0 0.95 0
+	endsegment
+    segment distance_2
+	    parent ground
+	    RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.01	 -0.0	 -0.0
+		meshcolor	1 1 1
+		mesh 0 0 0
+		mesh 0.0 0.78 0
+	endsegment
+
+    // RIGHT SIDE
+	segment pedal_r
+		parent Gear
+		RTinMatrix	0
+		RT	-0.0	 0.0	 0	xyz	-0.0 0.17 0.106
+		mass	0.1
+		inertia
+			0.001	0	0
+			0	0.001	0
+			0	0	0.01
+		com	0 0 0
+		meshfile	Geometry/pedal.obj
+		meshcolor	1 1 1
+		meshscale	1 1 1
+		rotations z
+		ranges
+		        -10*pi 10*pi
+	endsegment
+	segment Right_Foot_Support
+		parent pedal_r
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.045	 -0.0	 -0.0
+		mass	0.25
+		inertia
+			0.01	0	0
+			0	0.01	0
+			0	0	0.01
+		com	0 0 0
+		meshfile	Geometry/pedalWrap.obj
+		meshcolor	1 1 1
+		meshscale	1 1 1
+	endsegment
+	segment calcn_r
+		parent Right_Foot_Support
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.1 0.015 0.000
+		mass	1.07224816
+		inertia
+			0.00090461999999999997	0	0
+			0	0.0036184799999999999	0
+			0	0	0.0036184799999999999
+		com	0.10269300000000001 0.030807899999999999 0
+		meshfile	Geometry/foot.vtp
+		meshcolor	1 1 1
+		meshscale	1.0269299999999999 1.0269299999999999 1.0269299999999999
+	endsegment
+	segment talus_r
+		parent calcn_r
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	0.052050800000000003 0.053186400000000002 0.00
+		mass	0.10000000000000001
+		inertia
+			0.001	0	0
+			0	0.001	0
+			0	0	0.001
+		com	0 0 0
+		meshfile	Geometry/talus.vtp
+		meshcolor	1 1 1
+		meshscale	1 1 1
+	endsegment
+	segment tibia_r_geom_2
+		parent talus_r
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 0.46 	 -0.0
+		//meshfile	Geometry/fibula_r.vtp
+		meshcolor	1 1 1
+		//meshscale	1.1237299999999999 1.1237299999999999 1.1237299999999999
+	endsegment
+	segment tibia_r
+		parent tibia_r_geom_2
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0 	 0
+		mass	4.6740424300000001
+		inertia
+			0.080235100000000004	0	0
+			0	0.0081190299999999993	0
+			0	0	0.081349500000000005
+		com	0 -0.2739744 0
+		//meshfile	Geometry/tibia_r.vtp
+		mesh 0 0 0
+		mesh -0.0	 -0.48	 -0.0
+		meshcolor	1 1 1
+		//meshscale	1.1237299999999999 1.1237299999999999 1.1237299999999999
+	endsegment
+	segment knee_r
+		parent tibia_r
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0 	 0
+		rotations z
+		ranges
+				//0.92 2.01
+				0.72 2.21
+		mesh -0.0	 0.59	 -0.0
+		mesh 0 0 0
+		meshcolor	1 1 1
+	endsegment
+	segment patella_r
+		parent tibia_r
+		RTinMatrix	0
+		RT	-0.0	 0.0	 0.15	xyz	0.025	 -0.03	 -0.0
+		mass	0.106083466666667
+		inertia
+			3.8735899999999998e-06	0	0
+			0	1.3955699999999999e-05	0
+			0	0	1.3955699999999999e-05
+		com	0.0016462899999999999 0.031656299999999998 0
+		meshfile	Geometry/r_patella.vtp
+		meshcolor	1 1 1
+		meshscale	0.91460699999999995 1.1991000000000001 0.91460699999999995
+	endsegment
+	segment femur_r
+		parent knee_r
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 0.59	 -0.0
+		mass	8.5492663199999992
+		inertia
+			0.16956399999999999	0	0
+			0	0.0444489	0
+			0	0	0.178809
+		com	0 -0.33453 0
+		//meshfile	Geometry/femur_r.vtp
+		//mesh -0.0	 -0.59 	 -0.0
+		//mesh 0 0 0
+		//meshcolor	1 1 1
+		//meshscale	1.17378 1.17378 1.17378
+	endsegment
+	segment hip_r
+		parent femur_r
+		RTinMatrix	0
+		//RT	-0.0	 0.0	 -pi	xyz	-0.0	 0.0	 -0.0
+		RT	-0.0	 0.0	 -pi/2	xyz	-0.0	 0.0	 -0.0
+		rotations z
+		ranges
+				-pi pi
+	endsegment
+	segment pelvis_r
+		parent hip_r
+		RTinMatrix	0
+		RT	0 0	0	xyz	0.081 0.08  -0.105
+		// data from mass, COM and inertia were taken from femur. Need to be reviewed
+		mass	8.5492663199999992
+		inertia
+		    10.0	0	0
+			0	10.0	0
+			0	0	10.0
+		com	0 0 0
+		meshfile	Geometry/r_pelvis.vtp
+		meshcolor	1 1 1
+		meshscale	1.04599 1.04599 1.04599
+	endsegment
+
+    // LEFT SIDE
+	segment pedal_l
+		parent Gear
+		RTinMatrix	0
+		RT	-0.0	 0.0 -0.0	xyz	-0.0 -0.17 -0.106
+		mass	0.1
+		inertia
+			0.001	0	0
+			0	0.001	0
+			0	0	0.01
+		com	0 0 0
+		meshfile	Geometry/pedal.obj
+		meshcolor	1 1 1
+		meshscale	1 1 1
+		rotations z
+		ranges
+		        -10*pi 10*pi
+	endsegment
+	segment Left_Foot_Support
+		parent pedal_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.045	 -0.0	 -0.0
+		mass	0.25
+		inertia
+			0.01	0	0
+			0	0.01	0
+			0	0	0.01
+		com	0 0 0
+		meshfile	Geometry/pedalWrap.obj
+		meshcolor	1 1 1
+		meshscale	1 1 1
+	endsegment
+	segment calcn_l
+		parent Left_Foot_Support
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.1 0.015 0.00
+		mass	1.07224816
+		inertia
+			0.00090461999999999997	0	0
+			0	0.0036184799999999999	0
+			0	0	0.0036184799999999999
+		com	0.10269300000000001 0.030807899999999999 0
+		meshfile	Geometry/l_foot.vtp
+		meshcolor	1 1 1
+		meshscale	1.0269299999999999 1.0269299999999999 1.0269299999999999
+	endsegment
+	segment talus_l
+		parent calcn_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	0.052050800000000003 0.053186400000000002 0.00
+		mass	0.10000000000000001
+		inertia
+			0.001	0	0
+			0	0.001	0
+			0	0	0.001
+		com	0 0 0
+		meshfile	Geometry/l_talus.vtp
+		meshcolor	1 1 1
+		meshscale	1 1 1
+	endsegment
+	segment tibia_l_geom_2
+		parent talus_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 0.46	 -0.0
+		//meshfile	Geometry/fibula_l.vtp
+		meshcolor	1 1 1
+		//meshscale	1.1237299999999999 1.1237299999999999 1.1237299999999999
+	endsegment
+	segment tibia_l
+		parent tibia_l_geom_2
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0	 0
+		mass	4.6740424300000001
+		inertia
+			0.080235100000000004	0	0
+			0	0.0081190299999999993	0
+			0	0	0.081349500000000005
+		com	0 -0.2739744 0
+		//meshfile	Geometry/tibia_l.vtp
+		mesh 0 0 0
+		mesh -0.0	 -0.48	 -0.0
+		meshcolor	1 1 1
+		//meshscale	1.1237299999999999 1.1237299999999999 1.1237299999999999
+	endsegment
+	segment knee_l
+		parent tibia_l
+		RTinMatrix	0
+		RT	0 0 0	xyz	0 0 0
+		rotations z
+		ranges
+				//0.92 2.01   # attention! should be set accoring to experimental data
+				0.72 2.21   # attention! should be set accoring to experimental data
+		mesh 0 0 0
+		mesh -0.0	 0.59	 -0.0
+		meshcolor	1 1 1
+	endsegment
+	segment patella_l
+		parent tibia_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 0.15	xyz	0.025	 -0.03	 -0.0
+		mass	0.106083466666667
+		inertia
+			3.8735899999999998e-06	0	0
+			0	1.3955699999999999e-05	0
+			0	0	1.3955699999999999e-05
+		com	0.0016462899999999999 0.031656299999999998 0
+		meshfile	Geometry/l_pat.vtp
+		meshcolor	1 1 1
+		meshscale	0.91460699999999995 1.1991000000000001 0.91460699999999995
+	endsegment
+	segment femur_l
+		parent knee_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 0.59	 -0.0
+		mass	8.5492663199999992
+		inertia
+			0.16956399999999999	0	0
+			0	0.0444489	0
+			0	0	0.178809
+		com	0 -0.33453 0
+		//meshfile	Geometry/femur_l.vtp
+		//mesh -0.0	 -0.59	 -0.0
+		//mesh 0 0 0
+		meshcolor	1 1 1
+		//meshscale	1.17378 1.17378 1.17378
+	endsegment
+	segment hip_l
+		parent femur_l
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -pi/2	xyz	-0.0	 0.0	 -0.0
+		rotations z
+		ranges
+				-pi pi
+	endsegment
+	segment pelvis_l
+		parent hip_l
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0.081 0.08  0.105
+		// data from mass, COM and inertia were taken from femur. Need to be reviewed
+		mass	8.5492663199999992
+		inertia
+			10.0	0	0
+			0	10.0	0
+			0	0	10.0
+		com	0 0 0
+		meshfile	Geometry/l_pelvis.vtp
+		meshcolor	1 1 1
+		meshscale	1.04599 1.04599 1.04599
+	endsegment
+
+    //MARKERS
+    marker pedal_marker_r
+        parent pedal_r
+        position -0.0 0.00  -0.00
+    endmarker
+    marker pedal_marker_l
+        parent pedal_l
+        position -0.0 0.00  0.00
+    endmarker
+    // contact points to constraint the pelvis for no movement.
+   contact contact_femur_r   //should be the same as the marker above
+        parent femur_r
+        position 0 0 0
+        axis xy
+    endcontact
+    contact contact_femur_l   //should be the same as the marker above
+        parent femur_l
+        position 0 0 0
+        axis xy
+    endcontact
+
+    contact contact_pelvis_r
+       parent pelvis_r
+        position 0.081 0.08  -0.105
+        axis x
+    endcontact
+    contact contact_pelvis_l
+       parent pelvis_l
+        position 0.081 0.08  0.105
+        axis x
+    endcontact
+
+    // MUSCLE DEFINIION
+    // pelvis > tibia (workaround for knee joint)
+    musclegroup pelvis_to_tibia_r
+        OriginParent	pelvis_r
+        InsertionParent	tibia_r
+    endmusclegroup
+	muscle	        rect_fem_r
+		type	            hilldegroote
+		statetype	        degroote
+		musclegroup	        pelvis_to_tibia_r
+		//OriginPosition	    -0.030856600000000001 -0.082530200000000002 0.10125099999999999
+		//OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999
+		OriginPosition	    -0.030856600000000001 -0.088530200000000002 0.10125099999999999
+		//InsertionPosition   0.0342039 -0.0662255 0.000493124
+		//OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
+		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
+		optimalLength	    0.13287389999999999
+		maximalForce	    4169
+		tendonSlackLength	0.36132376999999999
+		pennationAngle	    0.087266460000000004
+		maxVelocity	        10
+		a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+        ding_v1              0.002
+        ding_v2              0.05
+	endmuscle
+        viapoint	recfem_r-P2
+			parent	patella_r
+			muscle	rect_fem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0091460699999999992 0.058756099999999999 0.00064022500000000002
+		endviapoint
+        viapoint	recfem_r-P3
+			parent	patella_r
+			muscle	rect_fem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0110667 0.052400799999999997 -0.00091460700000000001
+		endviapoint
+        viapoint	recfem_r-P4
+			parent	patella_r
+			muscle	rect_fem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0045730399999999996 0.0029617900000000002 2.7438200000000001e-05
+		endviapoint
+
+    // femur_r > tibia_r
+    musclegroup femur_r_to_tibia_r
+        OriginParent	femur_r
+        InsertionParent	tibia_r
+    endmusclegroup
+
+/* 	muscle	vast_lat_r
+		type	            hilldegroote
+		statetype	        degroote
+		musclegroup	        femur_r_to_tibia_r
+		//OriginPosition	    0.027306199999999999 -0.26301200000000002 0.041517600000000002
+		//InsertionPosition	0.034140999999999998 -0.066498299999999996 0.0053614099999999996
+		OriginPosition	0.00439012 -0.22359299999999999 0.031919799999999998
+		InsertionPosition	0.029936600000000001 -0.061959899999999998 0.0047011700000000002
+		optimalLength	    0.090484937031538801
+		maximalForce	    5149
+		tendonSlackLength	0.245690692307835
+		pennationAngle	    0.25286729000000002
+		maxVelocity	        10
+		a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+		viapoint	vaslat_r-P2
+			parent	femur_r
+			muscle	vast_lat_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0246029 -0.312475 0.0374074
+		endviapoint
+		viapoint	vaslat_r-P3
+			parent	patella_r
+			muscle	vast_lat_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0094204600000000003 0.051013900000000001 0.012895999999999999
+		endviapoint
+		viapoint	vaslat_r-P4
+			parent	patella_r
+			muscle	vast_lat_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0045730399999999996 0.0029788200000000001 0.0067040700000000003
+		endviapoint
+*/
+/*	muscle	vasmed_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	femur_r_to_tibia_r
+		OriginPosition	0.0128045 -0.25313999999999998 0.017194600000000001
+		InsertionPosition	0.0293478 -0.062145699999999998 -0.0062375599999999996
+		optimalLength	0.124938355693892
+		maximalForce	2747.82295081966
+		tendonSlackLength	0.23624707258481401
+		pennationAngle	0.42222252999999998
+		a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+		viapoint	vasmed_r-P2
+			parent	femur_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.032559999999999999 -0.33394200000000002 0.00082314699999999998
+		endviapoint
+		viapoint	vasmed_r-P3
+			parent	patella_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0057620299999999996 0.053667100000000002 -0.015548299999999999
+		endviapoint
+		viapoint	vasmed_r-P4
+			parent	patella_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0045730399999999996 0.0029788200000000001 -0.0077741599999999996
+		endviapoint
+*/
