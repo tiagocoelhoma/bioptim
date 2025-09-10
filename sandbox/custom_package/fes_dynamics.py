@@ -23,7 +23,7 @@ from typing import Callable
 # Model parameters
 tauc = 0.011  # 11ms
 # pd0 = 0.000086  # average value
-# pdt = 0.000138  # average value
+pdt = 0.000138  # average value
 # km = 0.180
 # tau1 = 0.044099
 # tau2 = 0.018522
@@ -88,6 +88,7 @@ class FESConfigureVariables(ConfigureVariables):
             as_states: bool,
             as_controls: bool,
             as_algebraic_states: bool,
+            **extra_params,
     ):
         """
         """
@@ -169,12 +170,16 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
             contact_types: list[ContactType] | tuple[ContactType] = (),
             fatigue: FatigueList = None,
+            **extra_params,
     ):
         BiorbdModel.__init__(self, bio_model, friction_coefficients, parameters, external_force_set, contact_types)
         TorqueDynamics.__init__(self, fatigue)
 
         self.state_configuration = [States.Q, States.QDOT,
-                                    FesStates.CN, FesStates.F, FesStates.ALPHA]
+                                    FesStates.CN, FesStates.F,
+                                    FesStates.ALPHA,
+                                    # (FesStates.ALPHA, {"n_pulse_trunc": extra_params["n_pulse_trunc"]}),
+                                    ]
 
         self.control_configuration = [FesControls.PW]
         if with_residual_torque:
@@ -183,6 +188,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         self.algebraic_configuration = []
         self.functions = []
         self.with_residual_torque = with_residual_torque
+        self.extra_params = extra_params
 
     def get_basic_variables(
             self,
@@ -202,14 +208,6 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         f = DynamicsFunctions.get(nlp.states["f"], states)
         # CONTROL VARIABLES
         pwd = DynamicsFunctions.get(nlp.controls["pw"], controls)
-        # PARAMETERS
-        t_phase = extra_params.get('t_phase')
-        # n_pulse_trunc = extra_parameters.get('n_pulse_trunc')
-        # pd0 = extra_parameters.get('pd0')
-        # pdt = extra_parameters.get('pdt')
-        # fes_min = extra_parameters.get('fes_min')
-        # muscle_params = extra_parameters.get('muscle_params')
-
 
         # fatigue_states, mus_activations = DynamicsFunctions.get_fatigue_states(states, nlp, mus_activations)
         #
@@ -220,12 +218,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         # if self.with_residual_torque:
         #     muscles_tau += DynamicsFunctions.get_fatigable_tau(nlp, states, controls)
         # muscles_tau += DynamicsFunctions.collect_tau(nlp, q, qdot, parameters)
-        #
-        # # Get external forces
-        # external_forces = nlp.get_external_forces(
-        #     "external_forces", states, controls, algebraic_states, numerical_timeseries
-        # )
-        # return q, qdot, muscles_tau, external_forces, mus_activations
+
         return q, qdot, cn, f, pwd
 
 
@@ -234,6 +227,13 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         qdot_biorbd = GeneralizedVelocity(qdot)
         return self.model.muscularJointTorque(forces, q_biorbd, qdot_biorbd).to_mx()
 
+
+    def get_ding_params(self, n_mus: int):
+        a_scale = self.model.muscle(n_mus).characteristics().muscleAscale().to_mx()
+        tau1 = self.model.muscle(n_mus).characteristics().muscleDingTau1Param().to_mx()
+        tau2 = self.model.muscle(n_mus).characteristics().muscleDingTau2Param().to_mx()
+        km = self.model.muscle(n_mus).characteristics().muscleDingKmParam().to_mx()
+        return a_scale, tau1, tau2, km
 
     def dynamics(
             self,
@@ -244,6 +244,13 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             algebraic_states,
             numerical_timeseries,
             nlp,
+            with_contact: bool = False,
+            with_torque: bool = False,
+            with_friction: bool = False,
+            fes_driven_task_flag: bool = False,
+            prediction_flag: bool = False,
+            only_parameter_a: bool = False,
+            identification_flag: bool = False,
             **extra_params,
     ):
 
@@ -261,43 +268,42 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             **extra_params,
         )
 
-        t_phase = 1/35
+        t_phase = extra_params['t_phase']
+        n_pulse_trunc = extra_params['n_pulse_trunc']
+        pd_offset = extra_params['pd_offset']
+        joint_index = extra_params['joint_index']
+
         num_t_phase = casadi.floor(time / t_phase)  # geting the time of the last pulse
         ri = casadi.if_else(num_t_phase, 1 + (r0 - 1) * exp(-t_phase / tauc), 1)
 
         alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
+        alpha_temp = MX.zeros(n_pulse_trunc)
         name_mus = nlp.model.muscle_names
 
-        # todo erase
-        pd0 = 0.12
-        muscle_params = [2500, 0.01, 0.02, 0.5]
-        only_parameter_a = True
-        n_pulse_trunc = 5
-        pdt = 0.011
-
-
         for m, muscle in enumerate(name_mus):
-            # see Modeling the length dependence of isometric force in human quadriceps muscles (perumal 2002)
-            # see Mathematical models for fatigue minimization during functional electrical stimulation (ding 2003)
-            # a_scale, tau1, tau2, km = CustomDynamicFunctions.get_ding_params(nlp.model, m)
-            tau1 = muscle_params[1]
-            tau2 = muscle_params[2]
-            km = muscle_params[3]
-            # a_scale = nlp.parameters["a_scale_param"].cx
-            a_scale = muscle_params[0] #todo erase
-            if not only_parameter_a:
-                tau1 = nlp.parameters["tau_1_param"].cx
-                tau2 = nlp.parameters["tau_2_param"].cx
-                km = nlp.parameters["km_param"].cx
+            a_scale, tau1, tau2, km = CustomFesDynamics.get_ding_params(nlp.model, m)
+            if identification_flag:
+                a_scale = nlp.parameters["a_scale_param"].cx
+                if not only_parameter_a:
+                    tau1 = nlp.parameters["tau_1_param"].cx
+                    tau2 = nlp.parameters["tau_2_param"].cx
+                    km = nlp.parameters["km_param"].cx
+
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
-            # 1 channel only
-            a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))     #todo verify pwd[m] or pwd 1channel or not
-            alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
-            a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
-            # offset = a_scale / (1 + np.exp(-(fes_min - pd0) / pdt))
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt)) - offset
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
+            alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
+            if identification_flag or prediction_flag:  # 1 stimulation channel only
+                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd_offset)))
+                a_sc = a_scale * (1 - exp(-(pwd - pd_offset) / pdt))
+            else:
+                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd_offset)))
+                a_sc = a_scale * (1 - exp(-(pwd[m] - pd_offset) / pdt))
+            if prediction_flag or fes_driven_task_flag: # a_scale depending on the knee angle
+                coef = extra_params.get('muscle_params')[muscle][0]
+                x = q[joint_index[m]]
+                a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
+                a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
+                a_sc = a_scale * (1 - exp(-(pwd[m] - pd_offset) / pdt))
+            alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
             alpha_dot = (alpha_temp - alpha) / t_phase
             sum_aux = 0
             for i in range(n_pulse_trunc):
@@ -307,16 +313,12 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             f_dot_list.append(a_sc * (cn[m] / (km + cn[m])) - (f[m] / (tau1 + tau2 * (cn[m] / (km + cn[m])))))
             cn_dot_list.append((1 / tauc) * sum_aux - (cn[m] / tauc))
 
-        # muscles_tau = self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
+        muscles_tau = CustomFesDynamics.muscle_joint_torque_from_muscle_forces(nlp.model, f, q, qdot)
         # muscles_tau = muscles_tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else muscles_tau
         # muscles_tau = muscles_tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else muscles_tau
-        # joints_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if with_orque else joints_tau
-        # todo muscles_tau[0, :] = muscles_tau[0, :] + DynamicsFunctions.get(nlp.controls["resistive_torque"], controls) if with_resistive_torque else muscles_tau
 
-        muscles_tau = MX(0)
-        with_contact = True
-        # ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau, [], [])
-        ddq = self.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau, [], [])
+        joints_tau = 0  #todo change
+        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau + joints_tau, [], [])
 
         return DynamicsEvaluation(dxdt=vertcat(qdot,
                                                ddq,
@@ -324,10 +326,6 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
                                                casadi.vertcat(*f_dot_list),
                                                casadi.vertcat(*alpha_dot_list)),
                                   defects=None)
-        # return DynamicsEvaluation(
-        #     dxdt=vertcat(states[1], self.forward_dynamics(with_contact=False)(states[0], states[1], controls[0], [])),
-        #     defects=None,
-        # )
 
 
     def get_rigid_contact_forces(

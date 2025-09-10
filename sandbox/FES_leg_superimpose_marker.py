@@ -17,7 +17,7 @@ from bioptim import (
     Solver,
     DynamicsOptionsList,
     PhaseDynamics,
-    DynamicsOptions,
+    DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList,
 )
 
 # import the custom model
@@ -28,11 +28,12 @@ def prepare_ocp(
     model: CustomFesDynamics,
     final_time: float,
     n_shooting: int,
-    configure_dynamics: callable = None,
+    with_torque: bool = False,
     ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
-    n_threads: int = 6,
+    n_threads: int = 8,
     expand_dynamics: bool = True,
+    **extra_params,
 ) -> OptimalControlProgram:
     """
     The initialization of an ocp
@@ -65,17 +66,7 @@ def prepare_ocp(
     The OptimalControlProgram ready to be solved
     """
 
-    # Add objective functions
-    objective_functions = Objective(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau")
-
     # DynamicsOptions
-    pulse_period = 1 / 35
-    extra_params = {'t_phase': pulse_period,
-                        # 'n_pulse_trunc': n_pulse_trunc,
-                        # 'pd_offset': pd_offset,
-                        # 'joint_index': joint_idx,
-                        # 'validation_flag': False
-                        }
     dynamics = DynamicsOptionsList()
     dynamics.add(
         DynamicsOptions(
@@ -85,19 +76,27 @@ def prepare_ocp(
             **extra_params,
         )
     )
+    # Add constraint functions
+    constraints = ConstraintList()
+
+    # Add objective functions
+    objective_functions = ObjectiveList()
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=0.1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=1e-1)
+    objective_functions.add(
+        ObjectiveFcn.Lagrange.SUPERIMPOSE_MARKERS,
+        first_marker="target",
+        second_marker="R.Shank.Lower",
+        # node=Node.END,
+        weight=1e6,
+    )
 
     # Path constraint
-    # the pendulum is constrained to point down with zero velocity at the beginning
-    # the pendulum has to be in vertical position pointing up
-    # at the end of the movement (3.14 rad) with zero speed (0 rad/s)
     x_bounds = BoundsList()
     x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
     x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
-
-    cn_min, cn_max, cn_init = 0.0, 2.0, 0.0
-    f_min, f_max, f_init = 0.0, 2000.0, 0.0
-    n_pulse_trunc = 5
-    alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
     x_bounds.add("cn",
                  min_bound=[cn_min] * model.nb_muscles,
                  max_bound=[cn_max] * model.nb_muscles)
@@ -109,27 +108,32 @@ def prepare_ocp(
                      min_bound=[alpha_min] * n_pulse_trunc,
                      max_bound=[alpha_max] * n_pulse_trunc)
         x_bounds[f"alpha_{m}"][:, [0]] = alpha_init
-    # set to a steady position in the beginning with no forces (starting node @ phase 0)
-    x_bounds["f"][:, [0]] = 0
     x_bounds["cn"][:, [0]] = 0
+    x_bounds["f"][:, [0]] = 0
+    joint_angle = 90
+    x_bounds["q"][:, [0]] = - (180 - joint_angle) * np.pi / 180
+    x_bounds["qdot"][:, [0]] = 0
 
-    # Initial guess
-    n_q = model.nb_q
-    n_qdot = model.nb_qdot
     x_init = InitialGuessList()
-    x_init["q"] = [20] * n_q
-    x_init["qdot"] = [20] * n_qdot
+    for m in range(model.nb_muscles):
+        x_init[f"alpha_{m}"] = [0] * n_pulse_trunc
 
     # Define control path constraint
-    n_tau = model.nb_tau
-    tau_min, tau_max, tau_init = -20, 20, 10
-    fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6
     u_bounds = BoundsList()
-    u_bounds["tau"] = [tau_min] * n_tau, [tau_max] * n_tau
-    u_bounds.add("pw", min_bound=[fes_min] * model.nb_muscles, max_bound=[fes_max] * model.nb_muscles)
+    if with_torque:
+        u_bounds.add("tau",
+                     min_bound=[tau_min] * model.nb_tau,
+                     max_bound=[tau_max] * model.nb_tau)
+        u_bounds["tau"][:, [0]] = 0
+    u_bounds.add("pw",
+                 min_bound=[fes_min] * model.nb_muscles,
+                 max_bound=[fes_max] * model.nb_muscles)
+    u_bounds["pw"][:, [0]] = fes_init
 
     u_init = InitialGuessList()
-    u_init["tau"] = [tau_init] * n_tau
+
+    u_scaling = VariableScalingList()
+    u_scaling["pw"] = [1e-3] * model.nb_muscles
 
     return OptimalControlProgram(
         model,
@@ -146,17 +150,38 @@ def prepare_ocp(
     )
 
 
+# PROBLEM PARAMETERS
+f_min, f_max, f_init = 0, 2000, 0
+cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
+tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
+fes_min, fes_max, fes_init = 86e-6, 800e-6, 86e-6  # todo: verificar scala?
+alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
+pd_offset = fes_min
+stim_freq = 35  # stimulation frequency in Hertz
+n_pulse_trunc = 5
+phase_period = round(1 / stim_freq, 3)
+n_shooting = 30
+
 def main():
     """
-    If main.py is run as a script, it will perform the optimization
+        Basic FES-driven example to superimpose markers
     """
-    biorbd_model_path = "models/legcyc.bioMod"
+    # biorbd_model_path = "models/legcyc.bioMod"
+    biorbd_model_path = "models/leg4.bioMod"
     # --- Prepare the ocp --- #
+    joint_idx = 0
+    extra_params = {'t_phase': phase_period,
+                    'n_pulse_trunc': n_pulse_trunc,
+                    'pd_offset': pd_offset,
+                    'joint_index': joint_idx,
+                    # 'validation_flag': False,
+                    }
     ocp = prepare_ocp(
         # model=MusclesWithExcitationsBiorbdModel(biorbd_model_path, with_residual_torque=True),
-        model=CustomFesDynamics(biorbd_model_path, with_residual_torque=True),
-        final_time=1,
-        n_shooting=30,
+        model=CustomFesDynamics(biorbd_model_path, with_residual_torque=True, **extra_params),
+        final_time=phase_period * n_shooting,
+        n_shooting=n_shooting,
+        **extra_params,
     )
 
     # Custom plots
@@ -167,16 +192,16 @@ def main():
 
     # --- Solve the ocp --- #
     solver = Solver.IPOPT(show_online_optim=False)
-    solver.set_maximum_iterations(100)
+    solver.set_maximum_iterations(500)
     sol = ocp.solve(solver=solver)
-
+    sol.graphs()
     # --- Show results --- #
     # sol.graphs(show_bounds=True)
     sol.print_cost()
 
     # --- Animation --- #
     # not implemented yet
-    # sol.animate()
+    sol.animate()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,603 @@
+version 4
+
+// File extracted from Models/P02_CyclingModel_rra.osim
+
+//Publication : Lai,A.K.M., Arnold, A.S., Wakeling, J.M. (2017) Why are antagonist muscles co-activated in my simulation? A musculoskeletal model for analysing human locomotor tasks. Annals of Biomedical Engineering; Clancy, C.E., Gatti, A.G., Ong, C.F., Maly, M.R., Delp, S.L. (2023) Muscle-Driven Simulations and Experimental Data of Cycling. Scientific Reports.
+
+//Credit : Rajagopal Model w/ updated knee, modified for movements involving high hip and knee flexion
+
+//Force units : N
+
+//Length units : meters
+
+// Biomod not include all Osim features as the optimisation is performed on a third part software.
+// The original file contained some of these features, corresponding warnings are shown in the end of the file.
+
+
+gravity	0 -9.8066499999999994 0
+
+// SEGMENT DEFINITION
+
+// Information about ground segment
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment ground
+		parent base 
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0	 0
+	endsegment
+
+    // Information about pelvis segment
+	segment pelvis_parent_offset
+		parent ground 
+		RTinMatrix	0
+		RT	0 0 pi/3	xyz	0 0 0               // in order to rotate pelvis (seated position)
+	endsegment
+    // Rotation transform was initially an orthogonal basis
+	segment pelvis_rotation_transform
+		parent pelvis_parent_offset
+		RTinMatrix	1
+		RT
+			0.0		1.0		0.0		0
+			0.0		0.0		1.0		0
+			1.0		0.0		0.0		0
+			0		0		0		1
+		//rotations xyz
+		//rotations x
+		ranges
+				-1.5707963300000001 1.5707963300000001
+				-1.5707963300000001 1.5707963300000001
+				-1.5707963300000001 1.5707963300000001
+	endsegment
+
+
+    // Segment to cancel transformation bases effect.
+	// Segment
+	segment pelvis_reset_axis
+		parent pelvis_rotation_transform 
+		RTinMatrix	1
+		RT
+			0.0		0.0		1.0		0
+			1.0		0.0		0.0		0
+			0.0		1.0		0.0		0
+			0		0		0		1
+	endsegment
+	segment pelvis_geom_2
+		parent pelvis_reset_axis 
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	-0.0	 -0.0	 -0.0
+		meshfile	Geometry/l_pelvis.vtp
+		meshcolor	1 1 1
+		meshscale	0.91452800000000001 1.1184700000000001 1.3048900000000001
+	endsegment
+	segment pelvis_geom_3
+		parent pelvis_geom_2 
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0	 0
+		meshfile	Geometry/sacrum.vtp
+		meshcolor	1 1 1
+		meshscale	0.91452800000000001 1.1184700000000001 1.3048900000000001
+	endsegment
+	segment pelvis
+		parent pelvis_geom_3 
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0	 0
+		mass	56.212669066666699
+		inertia
+			0.191196	0	0
+			0	0.191196	0
+			0	0	0.072885400000000003
+		com	-0.023650453320571981 0 0.019402648795488853
+		meshfile	Geometry/r_pelvis.vtp
+		meshcolor	1 1 1
+		meshscale	0.91452800000000001 1.1184700000000001 1.3048900000000001
+	endsegment
+
+    // Information about femur_r segment
+	segment femur_r_parent_offset
+		parent pelvis 
+		RTinMatrix	0
+		                // verde            vermelho        azul
+		RT	0 0 0	xyz	-0.061465999999999998 -0.0677888 0.120816
+	endsegment
+    // Rotation transform was initially an orthogonal basis
+	segment femur_r_rotation_transform
+		parent femur_r_parent_offset
+		RTinMatrix	1
+		RT
+			0.0		1.0		0.0		0
+			0.0		0.0		1.0		0
+			1.0		0.0		0.0		0
+			0		0		0		1
+		//rotations xyz
+		//rotations x
+		ranges
+				-0.52359878000000004 2.0943950999999998
+				-0.87266463000000005 0.52359878000000004
+				-0.69813170000000002 0.69813170000000002
+	endsegment
+    // Segment to cancel transformation bases effect.
+	// Segment
+	segment femur_r_reset_axis
+		parent femur_r_rotation_transform 
+		RTinMatrix	1
+		RT
+			0.0		0.0		1.0		0
+			1.0		0.0		0.0		0
+			0.0		1.0		0.0		0
+			0		0		0		1
+	endsegment
+
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment femur_r
+		parent femur_r_reset_axis 
+		RTinMatrix	0
+		// change here
+		RT	-0.0	 0.0	 0.45	xyz	-0.0	 -0.0	 -0.0
+		mass	11.446922933333299
+		inertia
+			0.226325	0	0
+			0	0.036134100000000002	0
+			0	0	0.226325
+		com	0 -0.20502000000000001 0
+		meshfile	Geometry/femur_r.vtp
+		meshcolor	1 1 1
+		meshscale	0.91460699999999995 1.206 0.91460699999999995
+	endsegment
+
+    // Information about tibia_r segment
+	segment tibia_r_parent_offset
+		parent femur_r 
+		RTinMatrix	0
+		RT	-1.64157 1.44618 1.5708	xyz	-0.0041157299999999997 -0.49397799999999997 -0.00160056
+	endsegment
+    // Rotation transform was initially an orthogonal basis
+	segment tibia_r_rotation_transform
+		parent tibia_r_parent_offset
+		RTinMatrix	1
+		RT
+			1.0		0.0		0.0		0
+			0.0		0.0		1.0		0
+			0.0		1.0		0.0		0
+			0		0		0		1
+		rotations x
+		ranges
+				-2.4434609527920599 0
+	endsegment
+    // Segment to cancel transformation bases effect.
+	segment tibia_r_reset_axis
+		parent tibia_r_rotation_transform 
+		RTinMatrix	1
+		RT
+			1.0		0.0		0.0		0
+			0.0		0.0		1.0		0
+			0.0		1.0		0.0		0
+			0		0		0		1
+	endsegment
+	segment tibia_r_geom_2
+		parent tibia_r_reset_axis 
+		RTinMatrix	0
+		RT	1.6954190940986915	 -1.500026298309295	 1.5708027834666674	xyz	-0.00160688304056894	 0.002399344623997177	 0.007801047292551671
+		meshfile	Geometry/r_fibula.vtp
+		meshcolor	1 1 1
+		meshscale	0.91999500000000001 0.97759399999999996 0.91999500000000001
+	endsegment
+
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment tibia_r
+		parent tibia_r_geom_2 
+		RTinMatrix	0
+		RT	0	 0	 0	xyz	0	 0	 0
+		mass	4.5626966666666702
+		inertia
+			0.058934300000000002	0	0
+			0	0.00531228	0
+			0	0	0.058934300000000002
+		com	0 -0.18251700000000001 0
+		meshfile	Geometry/tibia_r.vtp
+		meshcolor	1 1 1
+		meshscale	0.91999500000000001 0.97759399999999996 0.91999500000000001
+	endsegment
+
+
+// Information about patella_r segment
+	// Segment
+	segment patella_r_parent_offset
+		parent tibia_r
+		RTinMatrix	0
+		//RT	0 0 0	xyz	-0.0073991700000000001 -0.49199999999999999 -0.0025151700000000002
+		RT 0 0 0 XYZ 0 0 0
+	endsegment
+    // Rotation transform was initially an orthogonal basis
+	segment patella_r_rotation_transform
+		parent patella_r_parent_offset
+		RTinMatrix	1
+		RT
+			0.0		0.0		1.0		0
+			0.0		1.0		0.0		0
+			1.0		0.0		0.0		0
+			0		0		0		1
+		//rotations x
+		// ranges
+				// -99999.899999999994 99999.899999999994
+	endsegment
+    // Segment to cancel transformation bases effect.
+	segment patella_r_reset_axis
+		parent patella_r_rotation_transform 
+		RTinMatrix	1
+		RT
+			0.0		0.0		1.0		0
+			0.0		1.0		0.0		0
+			1.0		0.0		0.0		0
+			0		0		0		1
+	endsegment
+	segment patella_r
+		parent patella_r_reset_axis 
+		RTinMatrix	0
+		RT	-0.0	 0.0	 -0.0	xyz	0.03	 -0.03	 -0.0
+		mass	0.106083466666667
+		inertia
+			3.8958699999999999e-06	0	0
+			0	1.39669e-05	0
+			0	0	1.39669e-05
+		com	0.0016462899999999999 0.031838400000000003 0
+		meshfile	Geometry/r_patella.vtp
+		meshcolor	1 1 1
+		meshscale	0.91460699999999995 1.206 0.91460699999999995
+	endsegment
+
+
+// MUSCLE DEFINIION
+
+// pelvis > femur_r
+musclegroup pelvis_to_femur_r
+	OriginParent	pelvis
+	InsertionParent	femur_r
+endmusclegroup
+
+// pelvis > tibia_r
+musclegroup pelvis_to_tibia_r
+	OriginParent	pelvis
+	InsertionParent	tibia_r
+endmusclegroup
+
+	muscle	recfem_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	pelvis_to_tibia_r
+		OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
+		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
+		optimalLength	    0.13287389999999999
+		maximalForce	    1169
+		tendonSlackLength	0.36132376999999999
+		pennationAngle	    0.087266460000000004
+		// FES-DING-MODEL (standard values, need to be verified)
+        a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+
+		viapoint	recfem_r-P2
+			parent	patella_r
+			muscle	recfem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0091460699999999992 0.058756099999999999 0.00064022500000000002
+		endviapoint
+
+		viapoint	recfem_r-P3
+			parent	patella_r
+			muscle	recfem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0110667 0.052400799999999997 -0.00091460700000000001
+		endviapoint
+
+		viapoint	recfem_r-P4
+			parent	patella_r
+			muscle	recfem_r
+			musclegroup	pelvis_to_tibia_r
+			position	0.0045730399999999996 0.0029617900000000002 2.7438200000000001e-05
+		endviapoint
+
+
+// femur_r > tibia_r
+musclegroup femur_r_to_tibia_r
+	OriginParent	femur_r
+	InsertionParent	tibia_r
+endmusclegroup
+
+
+	muscle	vaslat140_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	femur_r_to_tibia_r
+		OriginPosition	0.00439012 -0.22359299999999999 0.031919799999999998
+		InsertionPosition	0.029936600000000001 -0.061959899999999998 0.0047011700000000002
+		optimalLength	    0.090484937031538801
+		maximalForce	    5149
+		tendonSlackLength	0.245690692307835
+		pennationAngle	    0.25286729000000002
+		// FES-DING-MODEL (standard values, need to be verified)
+        a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+
+		viapoint	vaslat_r-P2
+			parent	femur_r
+			muscle	vaslat140_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0246029 -0.312475 0.0374074
+		endviapoint
+
+		viapoint	vaslat_r-P3
+			parent	patella_r
+			muscle	vaslat140_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0094204600000000003 0.051013900000000001 0.012895999999999999
+		endviapoint
+
+		viapoint	vaslat_r-P4
+			parent	patella_r
+			muscle	vaslat140_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0045730399999999996 0.0029788200000000001 0.0067040700000000003
+		endviapoint
+
+	muscle	vasmed_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	femur_r_to_tibia_r
+		OriginPosition	0.0128045 -0.25313999999999998 0.017194600000000001
+		InsertionPosition	0.0293478 -0.062145699999999998 -0.0062375599999999996
+		optimalLength	0.124938355693892
+		maximalForce	2747.82295081966
+		tendonSlackLength	0.23624707258481401
+		pennationAngle	0.42222252999999998
+		// FES-DING-MODEL (standard values, need to be verified)
+        a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+
+		viapoint	vasmed_r-P2
+			parent	femur_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.032559999999999999 -0.33394200000000002 0.00082314699999999998
+		endviapoint
+
+		viapoint	vasmed_r-P3
+			parent	patella_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0057620299999999996 0.053667100000000002 -0.015548299999999999
+		endviapoint
+
+		viapoint	vasmed_r-P4
+			parent	patella_r
+			muscle	vasmed_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0045730399999999996 0.0029788200000000001 -0.0077741599999999996
+		endviapoint
+
+	muscle	vasint_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	femur_r_to_tibia_r
+		OriginPosition	0.026523600000000001 -0.23203499999999999 0.028352800000000001
+		InsertionPosition	0.0299642 -0.061783900000000003 0.00039559799999999999
+		optimalLength	0.13433454199108399
+		maximalForce	1697.36065573771
+		tendonSlackLength	0.23537248810403699
+		pennationAngle	0.063099730000000007
+		// FES-DING-MODEL (standard values, need to be verified)
+        a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+
+		viapoint	vasint_r-P2
+			parent	femur_r
+			muscle	vasint_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.030639300000000001 -0.25133100000000003 0.026066300000000001
+		endviapoint
+
+		viapoint	vasint_r-P3
+			parent	patella_r
+			muscle	vasint_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0053047199999999997 0.057888099999999998 -0.00054876399999999998
+		endviapoint
+
+		viapoint	vasint_r-P4
+			parent	patella_r
+			muscle	vasint_r
+			musclegroup	femur_r_to_tibia_r
+			position	0.0045730399999999996 0.0029788200000000001 -0.000356697
+		endviapoint
+
+/*    //  hamstrings_r
+	muscle	bflh140_r
+		type	hilldegroote
+		statetype	degroote
+		musclegroup	pelvis_to_tibia_r
+		OriginPosition	-0.095110899999999998 -0.13321 0.076466699999999999
+		//InsertionPosition	-0.024876700000000002 -0.048957899999999999 0.0031979
+		InsertionPosition	-0.024876700000000002 -0.048957899999999999 0.0031979
+		optimalLength	0.115637614434919
+		maximalForce	1313.18360655738
+		tendonSlackLength	0.39394986475011001
+		pennationAngle	0.17591823000000001
+		// FES-DING-MODEL (standard values, need to be verified)
+        a_scale         1721
+		ding_tau_1      0.055
+		ding_tau_2      0.0011
+        ding_km         0.144
+	endmuscle
+
+		viapoint	bflh_r-P2
+			parent	femur_r
+			muscle	bflh140_r
+			musclegroup	pelvis_to_tibia_r
+			position	-0.031611 -0.435662600000000003 0.0332854
+		endviapoint
+*/
+    contact contact_1
+        parent      tibia_r
+        position	0.032838800000000001 -0.348770000000000002 0.028786199999999994
+        axis x
+    endcontact
+
+  /*  contact contact_2
+        parent      femur_r
+        position	-0.032838800000000001 -0.378770000000000002 0.078786199999999994
+        axis x
+    endcontact*/
+
+    // **********************************************************************
+	// ****************************** Markers ******************************
+	// markers x: red, y: green, z: blue
+	marker	target
+		parent	                    ground
+		position	                0.622 -0.39 0.194
+	endmarker
+	marker	R.Shank.Lower
+		parent	tibia_r
+		position	-0.032838 -0.27877 0.0787862
+	endmarker
+
+// Information about talus_r segment
+	// Segment
+	segment talus_r_parent_offset
+		parent tibia_r
+		RTinMatrix	0
+		RT	0.175895 -0.105208 0.0186622	xyz	-0.0091999500000000001 -0.391038 0
+	endsegment
+
+
+    // Segment to cancel transformation bases effect.
+	// Segment
+	segment talus_r_reset_axis
+		parent talus_r_parent_offset
+		RTinMatrix	1
+		RT
+			1.0		0.0		0.0		0
+			0.0		1.0		0.0		0
+			0.0		0.0		1.0		0
+			0		0		0		1
+	endsegment
+
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment talus_r
+		parent talus_r_reset_axis
+		RTinMatrix	0
+		RT	-0.1749123564482117	 0.106844349393498	 -4.150603159113709e-08	xyz	-0.0	 -0.0	 -0.0
+		mass	0.123066666666667
+		inertia
+			0.0027054900000000001	0	0
+			0	0.0019488699999999999	0
+			0	0	0.0019488699999999999
+		com	0 0 0
+		meshfile	Geometry/r_talus.vtp
+		meshcolor	1 1 1
+		meshscale	0.98427200000000004 1.56328 1.4062699999999999
+	endsegment
+
+	// Markers
+
+// Information about calcn_r segment
+	// Segment
+	segment calcn_r_parent_offset
+		parent talus_r
+		RTinMatrix	0
+		RT	-1.7681899999999999 0.906223 1.8196000000000001	xyz	-0.048002999999999997 -0.065579499999999999 0.0111377
+	endsegment
+
+
+    // Segment to cancel transformation bases effect.
+	// Segment
+	segment calcn_r_reset_axis
+		parent calcn_r_parent_offset
+		RTinMatrix	1
+		RT
+			1.0		0.0		0.0		0
+			0.0		1.0		0.0		0
+			0.0		0.0		1.0		0
+			0		0		0		1
+	endsegment
+
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment calcn_r
+		parent calcn_r_reset_axis
+		RTinMatrix	0
+		RT	-2.492149221039226	 -1.4183416269257705	 3.1415876222346735	xyz	-0.0	 -0.0	 -0.0
+		mass	1.53833333333333
+		inertia
+			0.0037876799999999999	0	0
+			0	0.0057090700000000001	0
+			0	0	0.0057090700000000001
+		com	0.098427200000000006 0.046898299999999997 0
+		meshfile	Geometry/r_foot.vtp
+		meshcolor	1 1 1
+		meshscale	0.98427200000000004 1.56328 1.4062699999999999
+	endsegment
+
+
+// Information about toes_r segment
+	// Segment
+	segment toes_r_parent_offset
+		parent calcn_r
+		RTinMatrix	0
+		RT	-3.1415899999999999 0.61990100000000004 0	xyz	0.17598800000000001 -0.0031265500000000001 0.00151877
+	endsegment
+
+
+    // Segment to cancel transformation bases effect.
+	// Segment
+	segment toes_r_reset_axis
+		parent toes_r_parent_offset
+		RTinMatrix	1
+		RT
+			1.0		0.0		0.0		0
+			0.0		1.0		0.0		0
+			0.0		0.0		1.0		0
+			0		0		0		1
+	endsegment
+
+
+    //True segment where are applied inertial values.
+	// Segment
+	segment toes_r
+		parent toes_r_reset_axis
+		RTinMatrix	0
+		RT	3.141589393395043	 0.6199009999974872	 1.8940250840653746e-06	xyz	-0.0	 -0.0	 -0.0
+		mass	0.26656239999999998
+		inertia
+			0.00027054899999999997	0	0
+			0	0.00031411299999999998	0
+			0	0	0.00031411299999999998
+		com	0.034055799999999997 0.0093796599999999997 -0.024609800000000001
+		meshfile	Geometry/r_bofoot.vtp
+		meshcolor	1 1 1
+		meshscale	0.98427200000000004 1.56328 1.4062699999999999
+	endsegment
+
+/*-------------- WARNINGS---------------
+
+Some wrapping objects were present on the muscles :['addbrev_r', 'addlong_r', 'addmagDist_r', 'addmagIsch_r', 'addmagMid_r', 'addmagProx_r', 'bfsh140_r', 'gaslat140_r', 'gasmed_r', 'glmax1_r', 'glmax2_r', 'glmax3_r', 'grac_r', 'iliacus_r', 'psoas_r', 'recfem_r', 'semimem_r', 'semiten_r', 'vasint_r', 'vaslat140_r', 'vasmed_r', 'addbrev_l', 'addlong_l', 'addmagDist_l', 'addmagIsch_l', 'addmagMid_l', 'addmagProx_l', 'bfsh140_l', 'gaslat140_l', 'gasmed_l', 'glmax1_l', 'glmax2_l', 'glmax3_l', 'grac_l', 'iliacus_l', 'psoas_l', 'recfem_l', 'semimem_l', 'semiten_l', 'vasint_l', 'vaslat140_l', 'vasmed_l'] in the original file force set.
+Only via point are supported in biomod so they will be ignored.
+Some constraints were present in the original file. This feature is not implemented in biorbd yet so it will be ignored.*/
