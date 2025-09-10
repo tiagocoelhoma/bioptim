@@ -392,7 +392,7 @@ version 4
         OriginParent	pelvis_r
         InsertionParent	tibia_r
     endmusclegroup
-/*	muscle	        rect_fem_r
+	muscle	        rect_fem_r
 		type	            hilldegroote
 		statetype	        degroote
 		musclegroup	        pelvis_to_tibia_r
@@ -412,7 +412,7 @@ version 4
 		ding_tau_2      0.0011
         ding_km         0.144
 	endmuscle
-        /*viapoint	recfem_r-P2
+        viapoint	recfem_r-P2
 			parent	patella_r
 			muscle	rect_fem_r
 			musclegroup	pelvis_to_tibia_r
@@ -423,13 +423,13 @@ version 4
 			muscle	rect_fem_r
 			musclegroup	pelvis_to_tibia_r
 			position	0.0110667 0.052400799999999997 -0.00091460700000000001
-		endviapoint*/
- /*       viapoint	recfem_r-P4
+		endviapoint
+        viapoint	recfem_r-P4
 			parent	patella_r
 			muscle	rect_fem_r
 			musclegroup	pelvis_to_tibia_r
 			position	0.0045730399999999996 0.0029617900000000002 2.7438200000000001e-05
-		endviapoint*/
+		endviapoint
 
     // femur_r > tibia_r
     musclegroup femur_r_to_tibia_r
@@ -500,7 +500,7 @@ version 4
         OriginParent	    pelvis_l
         InsertionParent	    tibia_l
     endmusclegroup
-/*	muscle	        rect_fem_l
+	muscle	        rect_fem_l
 		type	            hilldegroote
 		statetype	        degroote
 		musclegroup	        pelvis_to_tibia_l
@@ -519,7 +519,7 @@ version 4
 		ding_tau_2      0.0011
         ding_km         0.144
 	endmuscle
-        /*viapoint	recfem_l-P2
+        viapoint	recfem_l-P2
 			parent	patella_l
 			muscle	rect_fem_l
 			musclegroup	pelvis_to_tibia_l
@@ -530,13 +530,13 @@ version 4
 			muscle	rect_fem_l
 			musclegroup	pelvis_to_tibia_l
 			position	0.0110667 0.052400799999999997 0.00091460700000000001
-		endviapoint*/
-/*		viapoint	recfem_l-P4
+		endviapoint
+		viapoint	recfem_l-P4
 			parent	patella_l
 			muscle	rect_fem_l
 			musclegroup	pelvis_to_tibia_l
 			position	0.0045730399999999996 0.0029617900000000002 -2.7438200000000001e-05
-		endviapoint*/
+		endviapoint
 
     // femur_l > tibia_l
     musclegroup femur_l_to_tibia_l
