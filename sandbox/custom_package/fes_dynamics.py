@@ -190,6 +190,16 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         self.with_residual_torque = with_residual_torque
         self.extra_params = extra_params
 
+
+    # def serialize(self) -> tuple[Callable, dict]:
+    #     return CustomFesDynamics, dict(
+    #         bio_model=self.path,
+    #         friction_coefficients=self.friction_coefficients,
+    #         external_force_set=self.external_force_set,
+    #         contact_types=self.contact_types,
+    #     )
+
+
     def get_basic_variables(
             self,
             nlp,
@@ -209,17 +219,12 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         # CONTROL VARIABLES
         pwd = DynamicsFunctions.get(nlp.controls["pw"], controls)
 
-        # fatigue_states, mus_activations = DynamicsFunctions.get_fatigue_states(states, nlp, mus_activations)
-        #
-        # # Compute the torques due to muscles
-        # muscles_tau = DynamicsFunctions.compute_tau_from_muscle(nlp, q, qdot, mus_activations, fatigue_states)
-        #
-        # # Add additional torques
-        # if self.with_residual_torque:
-        #     muscles_tau += DynamicsFunctions.get_fatigable_tau(nlp, states, controls)
-        # muscles_tau += DynamicsFunctions.collect_tau(nlp, q, qdot, parameters)
+        residual_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if "tau" in nlp.controls else None
 
-        return q, qdot, cn, f, pwd
+        mus_tau = CustomFesDynamics.muscle_joint_torque_from_muscle_forces(nlp.model, f, q, qdot)
+        muscles_tau = mus_tau + residual_tau if residual_tau is not None else mus_tau
+
+        return q, qdot, cn, f, pwd, muscles_tau
 
 
     def muscle_joint_torque_from_muscle_forces(self, forces: MX, q: MX, qdot: MX) -> MX:
@@ -254,11 +259,11 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             **extra_params,
     ):
 
-        # Get states indices
-        q_indices, qdot_indices = self.get_q_qdot_indices(nlp)
+        # # Get states indices
+        # q_indices, qdot_indices = self.get_q_qdot_indices(nlp)
 
         # Get variables
-        q, qdot, cn, f, pwd = self.get_basic_variables(
+        q, qdot, cn, f, pwd, muscles_tau = self.get_basic_variables(
             nlp,
             states,
             controls,
@@ -296,6 +301,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
                 a_sc = a_scale * (1 - exp(-(pwd - pd_offset) / pdt))
             else:
                 a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd_offset)))
+                a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
                 a_sc = a_scale * (1 - exp(-(pwd[m] - pd_offset) / pdt))
             if prediction_flag or fes_driven_task_flag: # a_scale depending on the knee angle
                 coef = extra_params.get('muscle_params')[muscle][0]
@@ -313,12 +319,11 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             f_dot_list.append(a_sc * (cn[m] / (km + cn[m])) - (f[m] / (tau1 + tau2 * (cn[m] / (km + cn[m])))))
             cn_dot_list.append((1 / tauc) * sum_aux - (cn[m] / tauc))
 
-        muscles_tau = CustomFesDynamics.muscle_joint_torque_from_muscle_forces(nlp.model, f, q, qdot)
+        # muscles_tau = CustomFesDynamics.muscle_joint_torque_from_muscle_forces(nlp.model, f, q, qdot)
         # muscles_tau = muscles_tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else muscles_tau
         # muscles_tau = muscles_tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else muscles_tau
 
-        joints_tau = 0  #todo change
-        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau + joints_tau, [], [])
+        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau, [], [])
 
         return DynamicsEvaluation(dxdt=vertcat(qdot,
                                                ddq,
@@ -337,10 +342,20 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             algebraic_states,
             numerical_timeseries,
             nlp,
+            **extra_params,
     ):
-        q, qdot, tau, external_forces, _ = self.get_basic_variables(
-            nlp, states, controls, parameters, algebraic_states, numerical_timeseries
+        q, qdot, cn, f, pwd, muscles_tau = self.get_basic_variables(
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            **extra_params,
         )
-        return nlp.model.rigid_contact_forces()(q, qdot, tau, external_forces, nlp.parameters.cx)
 
+        external_forces = nlp.get_external_forces(
+            "external_forces", states, controls, algebraic_states, numerical_timeseries
+        )
+        return nlp.model.rigid_contact_forces()(q, qdot, muscles_tau, external_forces, nlp.parameters.cx)
 
