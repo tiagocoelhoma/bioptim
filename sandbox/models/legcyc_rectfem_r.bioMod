@@ -140,7 +140,7 @@ version 4
 		rotations z
 		ranges
 				//0.92 2.01
-				0.72 2.21
+				0.5 2.5
 		mesh -0.0	 0.59	 -0.0
 		mesh 0 0 0
 		meshcolor	1 1 1
@@ -291,7 +291,7 @@ version 4
 		rotations z
 		ranges
 				//0.92 2.01   # attention! should be set accoring to experimental data
-				0.72 2.21   # attention! should be set accoring to experimental data
+				0.5 2.5   # attention! should be set accoring to experimental data
 		mesh 0 0 0
 		mesh -0.0	 0.59	 -0.0
 		meshcolor	1 1 1
@@ -393,13 +393,13 @@ version 4
 		statetype	        degroote
 		musclegroup	        pelvis_to_tibia_r
 		//OriginPosition	    -0.030856600000000001 -0.082530200000000002 0.10125099999999999
-		//OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999
-		OriginPosition	    -0.030856600000000001 -0.088530200000000002 0.10125099999999999
+		OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999 //works
+		//OriginPosition	    -0.030856600000000001 -0.088530200000000002 0.10125099999999999 //works
 		//InsertionPosition   0.0342039 -0.0662255 0.000493124
 		//OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
 		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
 		optimalLength	    0.13287389999999999
-		maximalForce	    4169
+		maximalForce	    1169
 		tendonSlackLength	0.36132376999999999
 		pennationAngle	    0.087266460000000004
 		maxVelocity	        10

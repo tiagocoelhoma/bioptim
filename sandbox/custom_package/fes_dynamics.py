@@ -33,6 +33,32 @@ r0 = 5
 scaling_factor = 1e6  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
 
 
+def set_muscle_ascale(bio_model: BiorbdModel, value: MX):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        bio_model.model.muscle(i).characteristics().setMuscleAscale(value)
+
+
+def set_muscle_km_param(bio_model: BiorbdModel, value: MX):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        bio_model.model.muscle(i).characteristics().setMuscleDingKmParam(value)
+
+
+def set_muscle_tau1_param(bio_model: BiorbdModel, value: MX):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        bio_model.model.muscle(i).characteristics().setMuscleDingTau1Param(value)
+
+
+def set_muscle_tau2_param(bio_model: BiorbdModel, value: MX):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        bio_model.model.muscle(i).characteristics().setMuscleDingTau2Param(value)
+
+
+
+
 class FESConfigureVariables(ConfigureVariables):
 
     @staticmethod
@@ -141,6 +167,49 @@ class FESConfigureVariables(ConfigureVariables):
             # combine_state_control_plot=True,
         )
 
+    @staticmethod
+    def configure_fes_pw_1_channel(
+            ocp,
+            nlp,
+            as_states: bool,
+            as_controls: bool,
+            as_algebraic_states: bool,
+    ):
+        """
+        """
+        # 1 channel only
+        ConfigureVariables.configure_new_variable(
+            "pw",
+            ["fes_input"],
+            ocp,
+            nlp,
+            as_states=as_states,
+            as_controls=as_controls,
+            as_algebraic_states=as_algebraic_states,
+            # combine_state_control_plot=True,
+        )
+
+    @staticmethod
+    def configure_resistive_torque(
+            ocp,
+            nlp,
+            as_states: bool,
+            as_controls: bool,
+            as_algebraic_states: bool,
+    ):
+        """
+        """
+        ConfigureVariables.configure_new_variable(
+            "resistive_torque",
+            ["gear_torque"],
+            ocp,
+            nlp,
+            as_states=as_states,
+            as_controls=as_controls,
+            as_algebraic_states=as_algebraic_states,
+            # combine_state_control_plot=True,
+        )
+
 
 class FesStates(FcnEnum):
     F = (FESConfigureVariables.configure_fes_f,)
@@ -150,7 +219,8 @@ class FesStates(FcnEnum):
 
 class FesControls(FcnEnum):
     PW = (FESConfigureVariables.configure_fes_pw,)
-    # RESTORQUE = (FESConfigureVariables.configure_fes_resistive_torque,)
+    PW1ch = (FESConfigureVariables.configure_fes_pw_1_channel,)
+    RESTORQUE = (FESConfigureVariables.configure_resistive_torque,)
 
 
 class CustomFesDynamics(BiorbdModel, TorqueDynamics):
@@ -167,6 +237,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             friction_coefficients: np.ndarray = None,
             with_residual_torque: Bool = False,
             parameters: ParameterList = None,
+            parameter_identification: Bool = False,
             external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
             contact_types: list[ContactType] | tuple[ContactType] = (),
             fatigue: FatigueList = None,
@@ -178,10 +249,12 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         self.state_configuration = [States.Q, States.QDOT,
                                     FesStates.CN, FesStates.F,
                                     FesStates.ALPHA,
-                                    # (FesStates.ALPHA, {"n_pulse_trunc": extra_params["n_pulse_trunc"]}),
                                     ]
 
-        self.control_configuration = [FesControls.PW]
+        if parameter_identification:
+            self.control_configuration = [FesControls.PW1ch, FesControls.RESTORQUE]
+        else:
+            self.control_configuration = [FesControls.PW]
         if with_residual_torque:
             self.control_configuration = [Controls.TAU, FesControls.PW]
 
@@ -239,6 +312,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         tau2 = self.model.muscle(n_mus).characteristics().muscleDingTau2Param().to_mx()
         km = self.model.muscle(n_mus).characteristics().muscleDingKmParam().to_mx()
         return a_scale, tau1, tau2, km
+
 
     def dynamics(
             self,
@@ -358,4 +432,129 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             "external_forces", states, controls, algebraic_states, numerical_timeseries
         )
         return nlp.model.rigid_contact_forces()(q, qdot, muscles_tau, external_forces, nlp.parameters.cx)
+
+
+class ParamIdentDynamics(CustomFesDynamics):
+    """
+    This class is used to create a model actuated through muscle activation.
+    """
+
+    def __init__(
+        self,
+        bio_model: Str | biorbd.Model,
+        friction_coefficients: np.ndarray = None,
+        with_contact: bool = False,
+        with_residual_torque: bool = False,
+        with_resistive_torque: bool = False,
+        parameters: ParameterList = None,
+        external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
+        contact_types: list[ContactType] | tuple[ContactType] = (),
+        fatigue: FatigueList = None,
+        **extra_params,
+    ):
+        super().__init__(
+            bio_model=bio_model,
+            friction_coefficients=friction_coefficients,
+            with_residual_torque=with_residual_torque,
+            parameters=parameters,
+            external_force_set=external_force_set,
+            contact_types=contact_types,
+            parameter_identification=True,
+            fatigue=fatigue,
+            **extra_params,
+        )
+        self.with_resistive_torque = with_resistive_torque
+
+
+    def dynamics(
+            self,
+            time,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            nlp,
+            with_contact: bool = False,
+            with_torque: bool = False,
+            with_friction: bool = False,
+            with_residual_torque: bool = False,
+            fes_driven_task_flag: bool = False,
+            prediction_flag: bool = False,
+            only_parameter_a: bool = False,
+            identification_flag: bool = False,
+            **extra_params,
+    ):
+        # Get variables
+        q, qdot, cn, f, pwd, muscles_tau = self.get_basic_variables(
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            **extra_params,
+        )
+
+        nlp.model.set_gravity(MX([0, 0, 0]))
+
+        t_phase = extra_params['t_phase']
+        n_pulse_trunc = extra_params['n_pulse_trunc']
+        pd0 = extra_params['pd0']
+        pdt = extra_params['pdt']
+        # fes_min = extra_params['fes_min']
+        muscle_params = extra_params['muscle_params']
+
+        num_t_phase = casadi.floor(time / t_phase)  # geting the time of the last pulse
+        ri = casadi.if_else(num_t_phase, 1 + (r0 - 1) * exp(-t_phase / tauc), 1)
+
+        alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
+        # alpha_temp = MX.zeros(n_pulse_trunc)
+        name_mus = nlp.model.muscle_names
+
+        for m, muscle in enumerate(name_mus):
+            tau1 = muscle_params[1]
+            tau2 = muscle_params[2]
+            km = muscle_params[3]
+            a_scale = nlp.parameters["a_scale_param"].cx
+            if not only_parameter_a:
+                tau1 = nlp.parameters["tau_1_param"].cx
+                tau2 = nlp.parameters["tau_2_param"].cx
+                km = nlp.parameters["km_param"].cx
+            alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
+            # alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]
+            # 1 channel only
+            a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
+            alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
+            alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
+            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
+            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
+            # offset = a_scale / (1 + np.exp(-(fes_min - pd0) / pdt))
+            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt)) - offset
+            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
+            alpha_dot = (alpha_temp - alpha) / t_phase
+            sum_aux = 0
+            for i in range(n_pulse_trunc):
+                ti = (num_t_phase - i) * t_phase
+                sum_aux += ri * alpha_temp[i] * casadi.exp(-(time - ti) / tauc)
+            alpha_dot_list.append(alpha_dot)
+            f_dot_list.append(a_sc * (cn[m] / (km + cn[m])) - (f[m] / (tau1 + tau2 * (cn[m] / (km + cn[m])))))
+            cn_dot_list.append((1 / tauc) * sum_aux - (cn[m] / tauc))
+
+        muscles_tau = self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
+        # muscles_tau = muscles_tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else muscles_tau
+        # muscles_tau = muscles_tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else muscles_tau
+        # joints_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if with_orque else joints_tau
+        resistive_torque = casadi.MX.zeros(muscles_tau.shape)
+        resistive_torque[0] = DynamicsFunctions.get(nlp.controls["resistive_torque"], controls)
+        muscles_tau = muscles_tau + resistive_torque if self.with_resistive_torque else muscles_tau
+
+        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau, [], [])
+
+        return DynamicsEvaluation(dxdt=vertcat(qdot,
+                                               ddq,
+                                               casadi.vertcat(*cn_dot_list),
+                                               casadi.vertcat(*f_dot_list),
+                                               casadi.vertcat(*alpha_dot_list)),
+                                  defects=None)
 
