@@ -5,6 +5,7 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions imp
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import (
     read_params, load_pickle, init_model_parameters)
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.torque_evaluation import msr, data_for_ocp
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.prediction import prediction
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
 
 # constant parameters
@@ -35,7 +36,7 @@ def main():
     save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = False           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
-    show_animate = False        # for an additional visualization of the OCP resulting animation
+    show_animate = True        # for an additional visualization of the OCP resulting animation
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
@@ -141,11 +142,10 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
-        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results,plot_graphs,show_animate)
-        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
+        # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
+        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 

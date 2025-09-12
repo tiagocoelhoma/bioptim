@@ -560,3 +560,125 @@ class ParamIdentDynamics(CustomFesDynamics):
                                                casadi.vertcat(*alpha_dot_list)),
                                   defects=None)
 
+
+class ParamPredictionDynamics(CustomFesDynamics):
+    """
+    This class is used to create a model actuated through muscle activation.
+    """
+
+    def __init__(
+            self,
+            bio_model: Str | biorbd.Model,
+            friction_coefficients: np.ndarray = None,
+            with_contact: bool = False,
+            with_residual_torque: bool = False,
+            with_resistive_torque: bool = False,
+            parameters: ParameterList = None,
+            n_pulse_trunc: int = 5,
+            external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
+            contact_types: list[ContactType] | tuple[ContactType] = (),
+            fatigue: FatigueList = None,
+            **extra_params,
+    ):
+        super().__init__(
+            bio_model=bio_model,
+            friction_coefficients=friction_coefficients,
+            with_residual_torque=with_residual_torque,
+            parameters=parameters,
+            external_force_set=external_force_set,
+            contact_types=contact_types,
+            parameter_identification=True,
+            fatigue=fatigue,
+            **extra_params,
+        )
+        self.with_resistive_torque = with_resistive_torque
+
+    def dynamics(
+            self,
+            time,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            nlp,
+            with_contact: bool = False,
+            with_torque: bool = False,
+            with_friction: bool = False,
+            with_residual_torque: bool = False,
+            fes_driven_task_flag: bool = False,
+            prediction_flag: bool = False,
+            only_parameter_a: bool = False,
+            identification_flag: bool = False,
+            n_pulse_trunc: int = 0,
+            **extra_params,
+    ):
+        # Get variables
+        q, qdot, cn, f, pwd, muscles_tau = self.get_basic_variables(
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            **extra_params,
+        )
+
+        nlp.model.set_gravity(MX([0, 0, 0]))
+
+        t_phase = extra_params['t_phase']
+        # n_pulse_trunc = extra_params['n_pulse_trunc']
+        pd0 = extra_params['pd0']
+        pdt = extra_params['pdt']
+        # fes_min = extra_params['fes_min']
+        muscle_params = extra_params['muscle_params']
+
+        num_t_phase = casadi.floor(time / t_phase)  # geting the time of the last pulse
+        ri = casadi.if_else(num_t_phase, 1 + (r0 - 1) * exp(-t_phase / tauc), 1)
+
+        alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
+        name_mus = nlp.model.muscle_names
+
+        for m, muscle in enumerate(name_mus):
+
+            coef = muscle_params[0]
+            tau1 = muscle_params[1]
+            tau2 = muscle_params[2]
+            km = muscle_params[3]
+
+            # knee_angle = q[joint_index[m]]
+            # x = 1.6009166
+            # knee_angle = extra_parameters.get('knee_angle')
+            knee_angle = extra_params['knee_angle']
+            a_scale = (sum(c * knee_angle ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
+            # a_scale = 12559
+            alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
+            # 1 channel only
+            a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
+            alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
+            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
+            alpha_dot = (alpha_temp - alpha) / t_phase
+            sum_aux = 0
+            for i in range(n_pulse_trunc):
+                ti = (num_t_phase - i) * t_phase
+                sum_aux += ri * alpha_temp[i] * casadi.exp(-(time - ti) / tauc)
+            alpha_dot_list.append(alpha_dot)
+            f_dot_list.append(a_sc * (cn[m] / (km + cn[m])) - (f[m] / (tau1 + tau2 * (cn[m] / (km + cn[m])))))
+            cn_dot_list.append((1 / tauc) * sum_aux - (cn[m] / tauc))
+
+        muscles_tau = self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
+        # muscles_tau = muscles_tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else muscles_tau
+        # muscles_tau = muscles_tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else muscles_tau
+        # joints_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if with_orque else joints_tau
+        resistive_torque = casadi.MX.zeros(muscles_tau.shape)
+        resistive_torque[0] = DynamicsFunctions.get(nlp.controls["resistive_torque"], controls)
+        muscles_tau = muscles_tau + resistive_torque if self.with_resistive_torque else muscles_tau
+
+        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, muscles_tau, [], [])
+
+        return DynamicsEvaluation(dxdt=vertcat(qdot,
+                                               ddq,
+                                               casadi.vertcat(*cn_dot_list),
+                                               casadi.vertcat(*f_dot_list),
+                                               casadi.vertcat(*alpha_dot_list)),
+                                  defects=None)
