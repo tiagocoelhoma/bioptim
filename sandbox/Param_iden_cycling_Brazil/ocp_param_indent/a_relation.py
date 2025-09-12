@@ -23,7 +23,8 @@ from bioptim import (
     ParameterObjectiveList, VariableScaling, InterpolationType, ConstraintFcn, PlotType,
     BiorbdModel, PhaseTransitionList, PhaseTransitionFcn,
 )
-from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, \
+    update_parameters_value, get_coefficients_sqrd
 
 # import the custom model
 from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale, set_muscle_tau2_param, \
@@ -338,22 +339,8 @@ def a_relation_ident(ocp_parameters,
 
         a_scale_param = float(sol.parameters["a_scale_param"][0])
         print(f"Optimized a_scale_param: {a_scale_param}")
-        parameters = [a_scale_param]
-
-    # if save_results:
-    #     from Param_iden_cycling.ocp_param_indent.common.params_handler import read_params, update_parameters_value
-    #     num_model = brbd.Model(model_path)
-    #     mus_names = num_model.muscleNames()
-    #     muscle_params = read_params(model_path, filename)
-    #     # for idx, mn in enumerate(mus_names):
-    #     #     m = mn.to_string()
-    #     print(f'Before we had the following parameters for muscle {muscle}: {muscle_params[muscle]}')
-    #     muscle_params[muscle][1] = tau_1_param
-    #     muscle_params[muscle][2] = tau_2_param
-    #     muscle_params[muscle][3] = km_param
-    #     update_parameters_value(filename, muscle, muscle_params[muscle])
-    #     muscle_params = read_params(model_path, filename)
-    #     print(f'Now we have the following parameters for muscle {muscle}: {muscle_params[muscle]}')
+        parameters.append(float(a_scale_param))
+        knee_angle.append(float(q_init_list[i][2]))
 
         # --- Show results --- #
         # sol.print_cost()
@@ -361,6 +348,14 @@ def a_relation_ident(ocp_parameters,
             sol.graphs()
         if show_animate:
             sol.animate()
+
+        # saving identified parameters
+    print(f'a_scale_values = {parameters}')
+    a_params = [round(a, 4) for a in parameters]
+    muscle_params = read_params(model_path, filename)
+    muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, True)
+    if save_results:
+        update_parameters_value(filename, muscle, muscle_params[muscle])
 
 #
 # if __name__ == "__main__":

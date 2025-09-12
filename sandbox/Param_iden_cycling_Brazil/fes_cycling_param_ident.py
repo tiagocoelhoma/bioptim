@@ -32,10 +32,10 @@ def main():
     with_friction = False
     with_resistive_torque = True
                                 # the higher this number, the lower the number of shooting nodes in the problem
-    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = False           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
-    show_animate = True        # for an additional visualization of the OCP resulting animation
+    show_animate = False        # for an additional visualization of the OCP resulting animation
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
