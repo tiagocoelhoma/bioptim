@@ -1,20 +1,15 @@
 import os, pickle, numpy as np, pandas as pd
 from bioptim import BiorbdModel
-
-from Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol, find_nearest
-from Param_iden_cycling_Brazil.ocp_param_indent.common.torque_evaluation import msr, remove_torque_offset, data_for_ocp
-from Param_iden_cycling_Brazil.ocp_param_indent.prediction import prediction
-from Param_iden_cycling_Brazil.ocp_param_indent.statistic import statistic_plots
-from Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
-from Param_iden_cycling_Brazil.ocp_param_indent.a_relation import a_relation_ident
-from Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, init_model_parameters, \
-    copy_params_right_to_left, load_pickle
-from Param_identification.statistical_analysis.averagevalues import knee_angles
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol, find_nearest
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import (
+    read_params, load_pickle, init_model_parameters)
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.torque_evaluation import msr, data_for_ocp
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
 
 # constant parameters
 stim_freq = 35                          # stimulation frequency in Hertz
 t_duration = round(1 / stim_freq, 6)    # duration of a stimulation pulse
-n_window = 6
+n_window = 5
 window_size = 10                        # window sized used for filtering torque data
 offset_interval = 15                    # torque data that will be used prior to the start of the contraction
 only_parameter_a = False
@@ -32,14 +27,14 @@ def main():
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
-    muscle_params_file = f'opt_sol_results/pickles/cycling_muscles_params.pkl'
+    muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
     with_friction = False
     with_resistive_torque = True
                                 # the higher this number, the lower the number of shooting nodes in the problem
-    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = True           # if one wants to have an additional visualization of the torque information
     plot_graphs = True         # for an additional visualization of the OCP resulting plots
-    show_animate = False        # for an additional visualization of the OCP resulting animation
+    show_animate = True        # for an additional visualization of the OCP resulting animation
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
@@ -47,7 +42,7 @@ def main():
         model_path, muscle, qoffset = dt
         init_model_parameters(model_path, muscle_params_file)
         data_file = msr[muscle]
-        df = pd.read_csv(f'data_exp/{data_file}', delimiter='\t')
+        df = pd.read_csv(f'Param_iden_cycling_Brazil/data_exp/{data_file}', delimiter='\t')
         torque = df['Torque (Nm)'].values.flatten()
         crank_angles = df['Angle(deg)'].values.flatten()
 
@@ -68,19 +63,14 @@ def main():
                                                                      contraction=1)
         mdl_param = read_params(model_path, muscle_params_file)[muscle]
 
-        n_phases = len(tau_target)
-        duration, nb_shooting, target_vel, target_power = 1.50, 50, 42, 10
-        dump_path = f'opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
-        from Param_iden_cycling_Brazil.leg_pedalling_torque_driven import main as main_torque
+        # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
+        dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
+        from sandbox.cycling_torque import main as main_torque
         if not os.path.isfile(dump_path):
-            print(f"Intializing kinematics...")
-            target_v = (-(target_vel * 2 * np.pi) / 60)  # rpm to rad/s
-            torque_crank = target_power / target_v
-            friction_coef_b = round(torque_crank / target_v, 4)
-            friction_coef_mu = 0.0
-            model_pedalling = 'models/leg_model_cyclic_muscle_inversed_root_3.bioMod'
-            main_torque(model_pedalling, dump_path, duration, nb_shooting, target_v, target_power, False, True,
-                        friction_coef_mu, friction_coef_b)
+            print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
+            biorbd_model_path = 'models/legcyc.bioMod'
+            q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
+            main_torque(biorbd_model_path, dump_path, q_init)
         sol_dict = pickle.load(open(dump_path, 'rb'))
         qvec = np.array(unpack_sol(sol_dict["q"])).T
 
@@ -109,7 +99,7 @@ def main():
             'n_pulse_trunc': n_window,
             'target': tau_target,
             'stim_flag': stim_flag,
-            'n_phases': n_phases,
+            'n_phases': len(tau_target),
             'joint_angle': crank_ang,
             'params': mdl_param,
             'only_parameter_a': only_parameter_a,
@@ -150,7 +140,12 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        tau1_tau2_km_ident(ocp_parameters,
+                           problem_params,
+                           muscle_params_file,
+                           save_results,
+                           plot_graphs,
+                           show_animate)
         # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
         # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)

@@ -447,6 +447,7 @@ class ParamIdentDynamics(CustomFesDynamics):
         with_residual_torque: bool = False,
         with_resistive_torque: bool = False,
         parameters: ParameterList = None,
+        n_pulse_trunc: int = 5,
         external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
         contact_types: list[ContactType] | tuple[ContactType] = (),
         fatigue: FatigueList = None,
@@ -483,6 +484,7 @@ class ParamIdentDynamics(CustomFesDynamics):
             prediction_flag: bool = False,
             only_parameter_a: bool = False,
             identification_flag: bool = False,
+            n_pulse_trunc: int = 0,
             **extra_params,
     ):
         # Get variables
@@ -499,7 +501,7 @@ class ParamIdentDynamics(CustomFesDynamics):
         nlp.model.set_gravity(MX([0, 0, 0]))
 
         t_phase = extra_params['t_phase']
-        n_pulse_trunc = extra_params['n_pulse_trunc']
+        # n_pulse_trunc = extra_params['n_pulse_trunc']
         pd0 = extra_params['pd0']
         pdt = extra_params['pdt']
         # fes_min = extra_params['fes_min']

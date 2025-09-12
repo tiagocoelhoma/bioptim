@@ -489,7 +489,7 @@ def calculate_power(dump_path,
 
 if __name__ == "__main__":
 
-    dump_path = f'opt_sol_results/fes_leg_pedalling/'
+    dump_path = f'../opt_sol_results/fes_leg_pedalling/'
     model_path = "../models/leg_model_cyclic_muscle_inversed_root_3.bioMod"
     file = 'friction_3.05s_105n_41.92rpm_20.0W_fric_0.2_1.0378'
     # filename = f'friction_{round(duration, 2)}s_{n_nodes}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}_opt_crank'

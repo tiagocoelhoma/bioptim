@@ -49,7 +49,6 @@ def prepare_ocp(
     n_shooting: int,
     with_torque: bool = False,
     with_friction: bool = True,
-    max_joint_torque: float = 0.0,
     with_resistive_torque: bool = True,
     only_parameter_a: bool = False,
     ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
@@ -271,7 +270,7 @@ def prepare_ocp(
 
     u_init = InitialGuessList()
     u_scaling = VariableScalingList()
-    u_scaling["pw"] = [1e-3] * 1    # 1channel only
+    u_scaling["pw"] = [fes_max]     # 1channel only
 
     ocp = OptimalControlProgram(
         model,

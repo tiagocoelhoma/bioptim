@@ -38,7 +38,7 @@ def main():
         # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [20, -1]]
 
     ]
-    muscle_params_file = f'opt_sol_results/pickles/cycling_muscles_params.pkl'
+    muscle_params_file = f'../opt_sol_results/pickles/cycling_muscles_params.pkl'
     with_friction = False
     with_resistive_torque = True
     # samp_step = 2               # ATTENTION! this will impact the number of nodes in the problem

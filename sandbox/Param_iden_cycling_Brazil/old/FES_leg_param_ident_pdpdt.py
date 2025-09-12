@@ -264,7 +264,7 @@ def main():
         print(f'Parameters a:{a_fit}; pd0:{pd0_fit}; pdt:{pdt_fit}')
 
         if save_data:
-            filename = 'opt_sol_results/pickles/pd0ptt.pkl'
+            filename = '../opt_sol_results/pickles/pd0ptt.pkl'
             if os.path.exists(filename):
                 data = load_pickle(filename)
             else:

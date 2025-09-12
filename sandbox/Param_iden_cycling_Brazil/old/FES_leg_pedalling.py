@@ -253,7 +253,7 @@ pd_offset = fes_min
 
 def main():
 
-    folder_path="opt_sol_results/fes_leg_pedalling/"
+    folder_path= "../opt_sol_results/fes_leg_pedalling/"
     n_window=6      # leave at 6 otherwise change dynamics (it was done to remove the loop in the dynamics)
     n_nodes=75
     stim_freq=35
@@ -287,7 +287,7 @@ def main():
             f"ocp_{round(duration, 2)}s_{n_nodes}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}_opt_crank"
     from Param_iden_cycling.ocp_param_indent.common.params_handler import read_params
     num_model = brbd.Model(model_path)
-    filename = f'opt_sol_results/pickles/cycling_muscles_params.pkl'
+    filename = f'../opt_sol_results/pickles/cycling_muscles_params.pkl'
     muscle_params = read_params(model_path, filename)
 
     for m, muscle_name in enumerate(muscle_params):
@@ -296,7 +296,7 @@ def main():
             padded_vec = np.pad(vec, (6 - len(vec), 0), mode='constant', constant_values=0)
             muscle_params[muscle_name][0] = padded_vec.tolist()
 
-    filename = f'opt_sol_results/pickles/pd0ptt.pkl'
+    filename = f'../opt_sol_results/pickles/pd0ptt.pkl'
     muscle_params_pd0_pdt = read_params(model_path, filename)
 
     # Intializing kinematics
@@ -360,7 +360,7 @@ def main():
             pickle.dump(data, file)
 
     # calculate power with a torque driven example (inverse dynamics with contact points is not implemented yet)
-    dump_path = f'opt_sol_results/fes_leg_pedalling/'
+    dump_path = f'../opt_sol_results/fes_leg_pedalling/'
     print(f'Calculating power {dump_path}{filename}')
     to_be_calculated = True
     if to_be_calculated:

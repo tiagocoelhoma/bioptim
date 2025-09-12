@@ -57,7 +57,7 @@ def main():
     # 'DYN_VM_400': "files/0185_Datafile.txt",
     # 'DYN_HM_350': "files/0177_Datafile.txt",
     # 'DYN_HM_400': "files/0179_Datafile.txt",
-    muscle_params_file = f'opt_sol_results/pickles/cycling_muscles_params.pkl'
+    muscle_params_file = f'../opt_sol_results/pickles/cycling_muscles_params.pkl'
     with_friction = True
     samp_step = 1               # ATTENTION! this will impact the number of nodes in the problem
                                 # the higher this number, the lower the number of shooting nodes in the problem

@@ -8,9 +8,6 @@ random_parameters = [[-2044517.3628, -15361055.1532, -45683433.1537, -67236448.1
                      0.1000000099977404, 0.20000000999764617, 0.01999999000782689]
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-
 def get_coefficients_sqrd(config, a_scale_values, angles, print_flag=True):
     # Convert knee angles from deg to rad
     # angles_deg = [float(angle[2]) for angle in angles]  # e.g. [[.., .., 145], ...]

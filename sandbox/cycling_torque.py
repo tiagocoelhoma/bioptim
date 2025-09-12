@@ -28,14 +28,14 @@ from bioptim import (
 
 
 def prepare_ocp(
-    biorbd_model_path: str,
-    n_shooting: int,
-    final_time: float,
-    q_init: list,
-    max_joint_torque: float,
-    ode_solver: OdeSolverBase = OdeSolver.RK4(),
-    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
-    expand_dynamics: bool = True,
+        biorbd_model_path: str,
+        n_shooting: int,
+        final_time: float,
+        q_init: list,
+        max_joint_torque: float,
+        ode_solver: OdeSolverBase = OdeSolver.RK4(),
+        phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
+        expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
     """
     Prepare the program
@@ -66,7 +66,7 @@ def prepare_ocp(
     The ocp ready to be solved
     """
 
-    bio_model = TorqueBiorbdModel(biorbd_model_path, contact_types = [ContactType.RIGID_EXPLICIT])
+    bio_model = TorqueBiorbdModel(biorbd_model_path, contact_types=[ContactType.RIGID_EXPLICIT])
 
     # Add objective functions
     objective_functions = ObjectiveList()
@@ -104,7 +104,6 @@ def prepare_ocp(
     u_bound["tau"].max[[3], [0]] = 0  # starting with negative torque right leg (so, removing the positive torque)
     u_bound["tau"].min[[4], [0]] = 0  # starting with positive torque left leg (so, removing the negative torque)
 
-
     return OptimalControlProgram(
         bio_model,
         n_shooting,
@@ -116,17 +115,21 @@ def prepare_ocp(
     )
 
 
-def main():
+def main(
+        biorbd_model_path: str = "models/legcyc.bioMod",
+        dump_path: str = "Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling",
+        q_init: np.array = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]),
+):
     """
     Runs and animate the program
     """
-    q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
-    ocp = prepare_ocp("models/legcyc.bioMod",
-                      n_shooting=40,
-                      final_time=1,
-                      q_init=q_init,
-                      max_joint_torque=50,
-                      )
+    ocp = prepare_ocp(
+        biorbd_model_path=biorbd_model_path,
+        n_shooting=40,
+        final_time=1,
+        q_init=q_init,
+        max_joint_torque=50,
+    )
 
     # --- Solve the program --- #
     sol = ocp.solve(Solver.IPOPT(show_online_optim=platform.system() == "Linux"))
@@ -158,7 +161,6 @@ def main():
         "final_time": final_time,
     }
 
-    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
     with open(dump_path, "wb") as file:
         del sol.ocp
         pickle.dump(data, file)

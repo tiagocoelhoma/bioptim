@@ -1,54 +1,86 @@
 """
-
+This script doesn't use biorbd
+This an example of how to use bioptim to solve a simple pendulum problem
 """
+
 import numpy as np
 from casadi import MX
 import biorbd as brbd
 
 from bioptim import (
-    BiorbdModel,
     OptimalControlProgram,
-    DynamicsList,
-    ObjectiveList,
-    ObjectiveFcn,
-    ConstraintList,
     BoundsList,
+    InitialGuessList,
+    ObjectiveFcn,
+    Objective,
     OdeSolver,
     OdeSolverBase,
+    CostType,
     Solver,
-    InitialGuessList,
-    InterpolationType, ParameterList, ParameterObjectiveList, PhaseDynamics, VariableScaling, VariableScalingList,
-    PhaseTransitionList, PhaseTransitionFcn, Node, ConstraintFcn,
+    DynamicsOptionsList,
+    PhaseDynamics,
+    DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType, ParameterList,
+    ParameterObjectiveList, VariableScaling, InterpolationType, ConstraintFcn, PlotType,
+    BiorbdModel, PhaseTransitionList, PhaseTransitionFcn,
 )
 
-from Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import set_muscle_ascale, set_muscle_tau1_param, \
-    set_muscle_tau2_param, set_muscle_km_param, custom_u_bounds
-from custom_package.fes_configure_probem import FesDynamicsFcn
-from custom_package.fes_objectives import FesObjective
-from custom_package.fes_plotting import dump_sol2
+# import the custom model
+from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale, set_muscle_tau2_param, \
+    set_muscle_km_param, set_muscle_tau1_param
+from sandbox.custom_package.fes_objectives import FesObjective
+
+from casadi import MX
+
+def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: list, fes_params: list) -> np.ndarray:
+    if stim_flag[current_shooting_point] == 0:
+        return np.array([fes_params[0]] * n_channels)
+    else:
+        return np.array([fes_params[1]] * n_channels)
+
+
+def get_muscle_ascale(bio_model: BiorbdModel):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        print(bio_model.model.muscle(i).characteristics().muscleAscale().to_mx())
+
 
 
 def prepare_ocp(
-        biorbd_model_path: str,
-        q_init: list = [],
-        ode_solver: OdeSolverBase = OdeSolver.RK2(),
-        phase_period: tuple = 0,
-        n_shooting: list = [],
-        with_friction: bool = False,
-        with_resistive_torque: bool = False,
-        with_residual_torque: bool = False,
-        pulse_period: float = 0,
-        n_pulse_trunc: int = 0,
-        target: list = [],
-        stim_flag: list = [],
-        n_phases: int = 1,
-        joint_angle: list = [],
-        params: list = [],
-        only_parameter_a: bool = False,
-        use_sx: bool = False,
-        problem_parameters: dict = {},
-        phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
+    biorbd_model_path: str,
+    q_init: list = [],
+    phase_period: tuple = 0,
+    n_shooting: list = [],
+    with_residual_torque: bool = False,
+    pulse_period: float = 0,
+    n_pulse_trunc: int = 0,
+    target: list = [],
+    stim_flag: list = [],
+    n_phases: int = 1,
+    joint_angle: list = [],
+    params: list = [],
+    with_torque: bool = False,
+    with_friction: bool = True,
+    with_resistive_torque: bool = True,
+    only_parameter_a: bool = False,
+    problem_parameters: dict = {},
+    ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
+    phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
+    n_threads: int = 16,
+    expand_dynamics: bool = True,
+    use_sx: bool = False,
+    **extra_params,
 ) -> OptimalControlProgram:
+    """
+    The initialization of an ocp
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    The OptimalControlProgram ready to be solved
+    """
+
     f_min, f_max, f_init = problem_parameters["f"]
     cn_min, cn_max, cn_init = problem_parameters["cn"]
     tau_min, tau_max, tau_init = problem_parameters["tau"]
@@ -80,7 +112,7 @@ def prepare_ocp(
                          interpolation=InterpolationType.CONSTANT)
     parameter_init["a_scale_param"] = ascale_init
 
-    if only_parameter_a is False:
+    if not only_parameter_a:
         tau_1_scaling = VariableScaling("tau_1_param", np.array([1]))
         parameters.add(
             "tau_1_param",  # The name of the parameter
@@ -120,59 +152,59 @@ def prepare_ocp(
                              interpolation=InterpolationType.CONSTANT)
         parameter_init["km_param"] = km_param_init
 
-    # Problem parameters and BiorbdModel
-    bio_model = tuple(BiorbdModel(biorbd_model_path, parameters=parameters) for _ in range(n_phases))
-
-    # set_muscle_ascale(bio_model[0], 24)
-    # set_muscle_tau1_param(bio_model[0], 25)
-    # set_muscle_tau2_param(bio_model[0], 26)
-    # set_muscle_km_param(bio_model[0], 27)
-    # a_scale = bio_model[0].model.muscle(0).characteristics().muscleAscale().to_mx()
-    # tau1 = bio_model[0].model.muscle(0).characteristics().muscleDingTau1Param().to_mx()
-    # tau2 = bio_model[0].model.muscle(0).characteristics().muscleDingTau2Param().to_mx()
-    # km = bio_model[0].model.muscle(0).characteristics().muscleDingKmParam().to_mx()
-
-    # init parameters
-    for phase_index in range(n_phases):
-        # the different crank positions give different torque offsets given the existence of gravity.
-        # In order to track the full torque target but ignoring the offset values, the gravity was removed
-        bio_model[phase_index].set_gravity(MX([0, 0, 0]))
-        # bio_model[phase_index].model.getGravity().to_mx()
-        # set_muscle_ascale(bio_model[phase_index], ascale_min)
-        # set_muscle_tau1_param(bio_model[phase_index], params[1])
-        # set_muscle_tau2_param(bio_model[phase_index], params[2])
-        # set_muscle_km_param(bio_model[phase_index], params[3])
-    # as a_scale parameter depends on the knee extension angle, we should get this index for later use in the dynamics
-    # bio_model.name_dof -> ('Gear_RotZ', 'pedal_r_RotZ', 'knee_r_RotZ', 'hip_r_RotZ', 'pedal_l_RotZ', 'knee_l_RotZ', 'hip_l_RotZ')
-    joint_idx = tuple(s.to_string() for s in bio_model[0].model.nameDof()).index('knee_r_RotZ')
-
-    # Dynamics
-    dynamics = DynamicsList()
-    for phase_index in range(n_phases):
-        extra_parameters = {'t_phase': pulse_period,
-                            'n_pulse_trunc': n_pulse_trunc,
-                            'pd0': pd0,
-                            'pdt': pdt,
-                            'fes_min': fes_min,
-                            'muscle_params': params,
-                            'joint_index': joint_idx,
-                            'validation_flag': False}
-        dynamics.add(FesDynamicsFcn.FES_PARAM_IDENT,
-                     expand=True,
-                     with_residual_torque=with_residual_torque,
-                     with_contact=True,
-                     with_friction=with_friction,
-                     with_resistive_torque=with_resistive_torque,
-                     only_parameter_a=only_parameter_a,
-                     identification_flag=True,
-                     phase_dynamics=phase_dynamics,
-                     **extra_parameters)
-
-    # Add constraints and objectives
-    constraints = ConstraintList()
+    # Add constraints and objectives (to be included in the following loop)
     objective_functions = ObjectiveList()
+    constraints = ConstraintList()
+    dynamics = DynamicsOptionsList()
 
+    model = ([
+        ParamIdentDynamics(biorbd_model_path,
+                           parameters=parameters,
+                           with_contact=True,
+                           with_residual_torque=False,
+                           with_resistive_torque=with_resistive_torque,
+                           **extra_params)
+    ] * n_phases)
+
+    # This should be a multiphase problem
     for i in range(n_phases):
+        model[i].set_gravity(MX([0, 0, 0]))
+        # bio_model[phase_index].model.getGravity().to_mx()
+        # set_muscle_ascale(model, ascale_max)
+        # set_muscle_tau1_param(model, params[1])
+        # set_muscle_tau2_param(model, params[2])
+        # set_muscle_km_param(model, params[3])
+        # get_muscle_ascale(model)
+        # model.model.muscle(0).characteristics().muscleDingTau1Param().to_mx()
+
+        # as a_scale parameter depends on the knee extension angle, we should get this index for later use in the dynamics
+        # bio_model.name_dof -> ('Gear_RotZ', 'pedal_r_RotZ', 'knee_r_RotZ', 'hip_r_RotZ', 'pedal_l_RotZ', 'knee_l_RotZ', 'hip_l_RotZ')
+        idx_crank = model[i].name_dof.index('Gear_RotZ')
+        muscles = model[i].muscle_names
+        right_muscles = [m for m in muscles if m.endswith('_r')]
+        left_muscles = [m for m in muscles if m.endswith('_l')]
+        joint_idx = [model[i].name_dof.index('knee_r_RotZ')] * len(right_muscles) + [
+            model[i].name_dof.index('knee_l_RotZ')] * len(left_muscles)
+        extra_params.update({'joint_idx': joint_idx})
+        extra_params.update({'idx_crank': idx_crank})
+
+        # DynamicsOptions
+        dynamics.add(
+            DynamicsOptions(
+                ode_solver=ode_solver,
+                expand_dynamics=expand_dynamics,
+                phase_dynamics=phase_dynamics,
+                with_contact=True,
+                # with_resistive_torque=with_resistive_torque,
+                only_parameter_a=only_parameter_a,
+                # with_residual_torque=True,
+                n_pulse_trunc=n_pulse_trunc,
+                with_torque=with_torque,
+                with_friction=with_friction,
+                **extra_params,
+            )
+        )
+
         tau_target = np.array(target[i]) * np.array(stim_flag[i])
         max_torque = np.max(tau_target)
         # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e1, phase=i,
@@ -200,26 +232,26 @@ def prepare_ocp(
                 weight=weight,
                 phase=i,
             )
-    constraints.add(ConstraintFcn.TRACK_STATE,
-                    key="qdot",
-                    node=Node.ALL,
-                    index=0,
-                    target=0,
-                    # weight=weight / 10,
-                    weight=1e3,
-                    phase=i,
-                    )
+
+        constraints.add(ConstraintFcn.TRACK_STATE,
+                        key="qdot",
+                        node=Node.ALL,
+                        index=0,
+                        target=0,
+                        # weight=1e3,
+                        phase=i,
+                        )
 
     # Path constraint
-    nb_tau = bio_model[0].nb_tau
-    nb_muscles = bio_model[0].nb_muscles
+    nb_tau = model[0].nb_tau
+    nb_muscles = model[0].nb_muscles
     x_bounds = BoundsList()
-    x_init = InitialGuessList()
+
     for phase_index in range(n_phases):
-        x_bounds.add("q", bounds=bio_model[phase_index].bounds_from_ranges("q"), phase=phase_index)
+        x_bounds.add("q", bounds=model[phase_index].bounds_from_ranges("q"), phase=phase_index)
         x_bounds[phase_index]["q"].min[:, [0]] = q_init[phase_index]
         x_bounds[phase_index]["q"].max[:, [0]] = q_init[phase_index]
-        x_bounds.add("qdot", bounds=bio_model[phase_index].bounds_from_ranges("qdot"), phase=phase_index)
+        x_bounds.add("qdot", bounds=model[phase_index].bounds_from_ranges("qdot"), phase=phase_index)
         x_bounds.add("cn",
                      min_bound=[cn_min] * nb_muscles,
                      max_bound=[cn_max] * nb_muscles,
@@ -228,21 +260,16 @@ def prepare_ocp(
                      min_bound=[f_min] * nb_muscles,
                      max_bound=[f_max] * nb_muscles,
                      phase=phase_index)
-        for m in range(bio_model[phase_index].nb_muscles):
+        for m in range(model[phase_index].nb_muscles):
             x_bounds.add(f"alpha_{m}",
                          min_bound=[alpha_min] * n_pulse_trunc,
                          max_bound=[alpha_max] * n_pulse_trunc,
                          phase=phase_index)
-        for m in range(bio_model[phase_index].nb_muscles):
+        for m in range(model[phase_index].nb_muscles):
             x_bounds[phase_index][f"alpha_{m}"][:, [0]] = alpha_init
         x_bounds[phase_index]["cn"][:, [0]] = 0
         x_bounds[phase_index]["f"][:, [0]] = 0
         x_bounds[phase_index]["qdot"][:, [0]] = 0.0  # no velocities at the start
-
-
-    for m in range(nb_muscles):
-        x_init[f"alpha_{m}"] = [0] * n_pulse_trunc
-    x_init["q"] = q_init[phase_index]
 
     # Define control path constraint
     u_bounds = BoundsList()
@@ -256,7 +283,8 @@ def prepare_ocp(
         if with_residual_torque:
             u_bounds.add("tau", min_bound=[tau_min] * nb_tau, max_bound=[tau_max] * nb_tau, phase=i)
             u_bounds[i]["tau"][:, [0]] = 0
-        extra_params_u = {"n_channels": 1, "stim_flag": stim_flag[i], "fes_sc": fes_sc, "fes_min": fes_min}
+
+        extra_params_u = {"n_channels": 1, "stim_flag": stim_flag[i], "fes_params": [fes_min, fes_max, fes_init]}
         u_bounds.add(
             "pw",
             min_bound=custom_u_bounds,
@@ -266,32 +294,37 @@ def prepare_ocp(
             phase=i,
         )
 
+    x_init = InitialGuessList()
+    for m in range(nb_muscles):
+        x_init[f"alpha_{m}"] = [0] * n_pulse_trunc
+    x_init["q"] = q_init[phase_index]
+
     u_init = InitialGuessList()
     u_scaling = VariableScalingList()
-    u_scaling["pw"] = [fes_max]
+    u_scaling["pw"] = [fes_max]     # 1channel only
 
     phase_transitions = PhaseTransitionList()
     for i in range(n_phases - 1):
         phase_transitions.add(PhaseTransitionFcn.DISCONTINUOUS, phase_pre_idx=i)
 
     ocp = OptimalControlProgram(
-        bio_model,
-        dynamics,
+        model,
         n_shooting,
         phase_period,
+        dynamics=dynamics,
         x_bounds=x_bounds,
         u_bounds=u_bounds,
         x_init=x_init,
         u_init=u_init,
-        objective_functions=objective_functions,
         constraints=constraints,
+        objective_functions=objective_functions,
         u_scaling=u_scaling,
-        ode_solver=ode_solver,
         parameters=parameters,
         parameter_objectives=parameter_objectives,
         parameter_bounds=parameter_bounds,
         parameter_init=parameter_init,
-        n_threads=16,
+        use_sx=False,
+        n_threads=n_threads,
         phase_transitions=phase_transitions,
     )
 
@@ -319,7 +352,7 @@ def tau1_tau2_km_ident(ocp_parameters,
     t_duration = ocp_parameters['pulse_period']  # Attention: duration of each pulse
     times = ocp_parameters['phase_period']  # Attention: duration of each phase of the problem
     nodes = ocp_parameters['n_shooting']
-    n_window = ocp_parameters['n_pulse_trunc']
+    n_pulse_trunc = ocp_parameters['n_pulse_trunc']
     tau_target = ocp_parameters['target']
     stim_flag = ocp_parameters['stim_flag']
     n_phases = ocp_parameters['n_phases']
@@ -329,8 +362,16 @@ def tau1_tau2_km_ident(ocp_parameters,
     muscle = ocp_parameters['muscle']
     stim_freq = ocp_parameters['stim_freq']
 
+    a, pd0, pdt = problem_parameters['pd0pdt']
+
     # --- Prepare the optimal control program --- #
     print(f'\nRunning identification tau1, tau2, km for {muscle} using {model_path}...')
+    extra_params = {'t_phase': t_duration,
+                    # 'n_pulse_trunc': n_pulse_trunc,
+                    'pd0': pd0,
+                    'pdt': pdt,
+                    'muscle_params': mdl_param,
+                    }
     ocp = prepare_ocp(biorbd_model_path=model_path,
                       q_init=q_init_list,
                       with_friction=with_friction,
@@ -339,14 +380,15 @@ def tau1_tau2_km_ident(ocp_parameters,
                       pulse_period=t_duration,  # Attention: duration of each pulse
                       phase_period=times,  # Attention: duration of each phase of the problem
                       n_shooting=nodes,
-                      n_pulse_trunc=n_window,
+                      n_pulse_trunc=n_pulse_trunc,
                       target=tau_target,
                       stim_flag=stim_flag,
                       n_phases=n_phases,
                       joint_angle=knee_ang,
                       params=mdl_param,
                       only_parameter_a=only_parameter_a,
-                      problem_parameters=problem_parameters)
+                      problem_parameters=problem_parameters,
+                      **extra_params)
 
     # --- Solve the program --- #
     sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=1000, _tol=1e-4))
@@ -365,24 +407,20 @@ def tau1_tau2_km_ident(ocp_parameters,
         parameters = [a_scale_param, tau_1_param, tau_2_param, km_param]
     print(f'Identified Parameters = {parameters}')
 
-    if save_results:
-        from Param_iden_cycling.ocp_param_indent.common.params_handler import read_params, update_parameters_value
-        num_model = brbd.Model(model_path)
-        mus_names = num_model.muscleNames()
-        muscle_params = read_params(model_path, filename)
-        # for idx, mn in enumerate(mus_names):
-        #     m = mn.to_string()
-        print(f'Before we had the following parameters for muscle {muscle}: {muscle_params[muscle]}')
-        muscle_params[muscle][1] = tau_1_param
-        muscle_params[muscle][2] = tau_2_param
-        muscle_params[muscle][3] = km_param
-        update_parameters_value(filename, muscle, muscle_params[muscle])
-        muscle_params = read_params(model_path, filename)
-        print(f'Now we have the following parameters for muscle {muscle}: {muscle_params[muscle]}')
     # if save_results:
+    #     from Param_iden_cycling.ocp_param_indent.common.params_handler import read_params, update_parameters_value
     #     num_model = brbd.Model(model_path)
-    #     filename = f'opt_sol_results/pickles/{muscle}_results.pkl'
-    #     dump_sol2(num_model, ocp, sol, filename, len(nodes), parameters, n_phases, stim_freq)
+    #     mus_names = num_model.muscleNames()
+    #     muscle_params = read_params(model_path, filename)
+    #     # for idx, mn in enumerate(mus_names):
+    #     #     m = mn.to_string()
+    #     print(f'Before we had the following parameters for muscle {muscle}: {muscle_params[muscle]}')
+    #     muscle_params[muscle][1] = tau_1_param
+    #     muscle_params[muscle][2] = tau_2_param
+    #     muscle_params[muscle][3] = km_param
+    #     update_parameters_value(filename, muscle, muscle_params[muscle])
+    #     muscle_params = read_params(model_path, filename)
+    #     print(f'Now we have the following parameters for muscle {muscle}: {muscle_params[muscle]}')
 
     # --- Show results --- #
     # sol.print_cost()

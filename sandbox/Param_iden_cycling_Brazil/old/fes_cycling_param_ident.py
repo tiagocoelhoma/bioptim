@@ -4,6 +4,7 @@ from bioptim import BiorbdModel
 from Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol, find_nearest
 from Param_iden_cycling_Brazil.ocp_param_indent.common.torque_evaluation import msr, remove_torque_offset, data_for_ocp
 from Param_iden_cycling_Brazil.ocp_param_indent.prediction import prediction
+from Param_iden_cycling_Brazil.ocp_param_indent.statistic import statistic_plots
 from Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
 from Param_iden_cycling_Brazil.ocp_param_indent.a_relation import a_relation_ident
 from Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, init_model_parameters, \
@@ -25,18 +26,17 @@ def main():
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
         ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, 25]],
-        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
-        # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]]
+        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, 25]],
+        # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, 70]]
         # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
-    muscle_params_file = f'opt_sol_results/pickles/cycling_muscles_params.pkl'
+    muscle_params_file = f'../opt_sol_results/pickles/cycling_muscles_params.pkl'
     with_friction = False
     with_resistive_torque = True
-
                                 # the higher this number, the lower the number of shooting nodes in the problem
-    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = True           # if one wants to have an additional visualization of the torque information
     plot_graphs = True         # for an additional visualization of the OCP resulting plots
     show_animate = False        # for an additional visualization of the OCP resulting animation
@@ -65,8 +65,8 @@ def main():
                                                                      stim_freq,
                                                                      window_size,
                                                                      print_flag,
-                                                                     contraction=2)
-        mdl_param = read_params(model_path, muscle_params_file)#[muscle]
+                                                                     contraction=1)
+        mdl_param = read_params(model_path, muscle_params_file)[muscle]
 
         n_phases = len(tau_target)
         duration, nb_shooting, target_vel, target_power = 1.50, 50, 42, 10
@@ -117,6 +117,13 @@ def main():
             'stim_freq': stim_freq,
         }
 
+        # PROBLEM PARAMETERS
+        # data = load_pickle('opt_sol_results/pickles/pd0ptt.pkl')
+        # print(data[muscle])
+        # a = data[muscle][0]
+        # pd0 = data[muscle][1]
+        # pdt = data[muscle][2]
+
         # need to be reviewed
         a = 1
         pd0 = 0.00011785  # average value
@@ -134,17 +141,20 @@ def main():
             "cn": (0.0, 2.0, 0.0),  # cn_min, cn_max, cn_init
             "tau": (0.0, 0.0, 0.0),  # tau_min, tau_max, tau_init
             "fes": fes, # fes_min, fes_max (800+800us), fes_init, fes_sc (300+300us)
-            "ascale": (100.0, 50e3, 100.0),  # ascale_min, ascale_max, ascale_init
+            "ascale": (0, 10e3, 5e3),  # ascale_min, ascale_max, ascale_init
             "km": (0.020, 0.800, 0.30130779),  # km_param_min, km_param_max, km_param_init
             "tau_1": (0.010, 0.1, 0.06637256),  # tau_1_param_min, tau_1_param_max, tau_1_param_init
-            "tau_2": (0.001, 0.2, 0.001),  # tau_2_param_min, tau_2_param_max, tau_2_param_init
+            "tau_2": (0.001, 0.2, 0.01),  # tau_2_param_min, tau_2_param_max, tau_2_param_init
             "alpha": (-1.0, 2.0, 0.0),  # alpha_min, alpha_max, alpha_init
             "pd0pdt": (a, pd0, pdt),  #
         }
 
-
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
+        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
+        # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
+        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
+        # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 
 
