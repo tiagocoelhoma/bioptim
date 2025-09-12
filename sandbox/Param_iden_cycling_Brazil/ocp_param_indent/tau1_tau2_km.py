@@ -358,7 +358,7 @@ def tau1_tau2_km_ident(ocp_parameters,
     n_phases = ocp_parameters['n_phases']
     knee_ang = ocp_parameters['joint_angle']
     mdl_param = ocp_parameters['params']
-    only_parameter_a = ocp_parameters['only_parameter_a']
+    # only_parameter_a = ocp_parameters['only_parameter_a']
     muscle = ocp_parameters['muscle']
     stim_freq = ocp_parameters['stim_freq']
 
@@ -386,7 +386,7 @@ def tau1_tau2_km_ident(ocp_parameters,
                       n_phases=n_phases,
                       joint_angle=knee_ang,
                       params=mdl_param,
-                      only_parameter_a=only_parameter_a,
+                      only_parameter_a=False,
                       problem_parameters=problem_parameters,
                       **extra_params)
 
@@ -397,14 +397,13 @@ def tau1_tau2_km_ident(ocp_parameters,
     print(f"Optimized a_scale_param: {a_scale_param}")
     parameters = [a_scale_param]
 
-    if only_parameter_a is False:
-        tau_1_param = float(sol.parameters["tau_1_param"][0])
-        print(f"Optimized tau_1_param: {tau_1_param}")
-        tau_2_param = float(sol.parameters["tau_2_param"][0])
-        print(f"Optimized tau_2_param: {tau_2_param}")
-        km_param = float(sol.parameters["km_param"][0])
-        print(f"Optimized km_param: {km_param}")
-        parameters = [a_scale_param, tau_1_param, tau_2_param, km_param]
+    tau_1_param = float(sol.parameters["tau_1_param"][0])
+    print(f"Optimized tau_1_param: {tau_1_param}")
+    tau_2_param = float(sol.parameters["tau_2_param"][0])
+    print(f"Optimized tau_2_param: {tau_2_param}")
+    km_param = float(sol.parameters["km_param"][0])
+    print(f"Optimized km_param: {km_param}")
+    parameters = [a_scale_param, tau_1_param, tau_2_param, km_param]
     print(f'Identified Parameters = {parameters}')
 
     # if save_results:

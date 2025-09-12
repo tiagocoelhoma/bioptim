@@ -1,5 +1,6 @@
 import os, pickle, numpy as np, pandas as pd
 from bioptim import BiorbdModel
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.a_relation import a_relation_ident
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol, find_nearest
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import (
     read_params, load_pickle, init_model_parameters)
@@ -32,8 +33,8 @@ def main():
     with_resistive_torque = True
                                 # the higher this number, the lower the number of shooting nodes in the problem
     save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
-    print_flag = True           # if one wants to have an additional visualization of the torque information
-    plot_graphs = True         # for an additional visualization of the OCP resulting plots
+    print_flag = False           # if one wants to have an additional visualization of the torque information
+    plot_graphs = False         # for an additional visualization of the OCP resulting plots
     show_animate = True        # for an additional visualization of the OCP resulting animation
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
@@ -102,7 +103,7 @@ def main():
             'n_phases': len(tau_target),
             'joint_angle': crank_ang,
             'params': mdl_param,
-            'only_parameter_a': only_parameter_a,
+            # 'only_parameter_a': only_parameter_a,
             'muscle': muscle,
             'stim_freq': stim_freq,
         }
@@ -140,7 +141,13 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        tau1_tau2_km_ident(ocp_parameters,
+        # tau1_tau2_km_ident(ocp_parameters,
+        #                    problem_params,
+        #                    muscle_params_file,
+        #                    save_results,
+        #                    plot_graphs,
+        #                    show_animate)
+        a_relation_ident(ocp_parameters,
                            problem_params,
                            muscle_params_file,
                            save_results,
