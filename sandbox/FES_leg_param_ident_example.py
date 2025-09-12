@@ -19,10 +19,12 @@ from bioptim import (
     PhaseDynamics,
     DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType, ParameterList,
     ParameterObjectiveList, VariableScaling, InterpolationType, ConstraintFcn, PlotType,
+    BiorbdModel,
 )
 
 # import the custom model
-from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale
+from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale, set_muscle_tau2_param, \
+    set_muscle_km_param, set_muscle_tau1_param
 from sandbox.custom_package.fes_objectives import FesObjective
 
 from casadi import MX
@@ -34,6 +36,13 @@ def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: lis
         return np.array([fes_params[1]] * n_channels)
 
 
+def get_muscle_ascale(bio_model: BiorbdModel):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        print(bio_model.model.muscle(i).characteristics().muscleAscale().to_mx())
+
+
+
 def prepare_ocp(
     biorbd_model_path: str,
     final_time: float,
@@ -42,6 +51,7 @@ def prepare_ocp(
     with_friction: bool = True,
     max_joint_torque: float = 0.0,
     with_resistive_torque: bool = True,
+    only_parameter_a: bool = False,
     ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     n_threads: int = 16,
@@ -65,7 +75,7 @@ def prepare_ocp(
     parameter_bounds = BoundsList()
     parameter_init = InitialGuessList()
 
-    a_scaling = VariableScaling("a_scale_param", np.array([1]))
+    a_scaling = VariableScaling("a_scale_param", np.array([0.1]))
     parameters.add(
         "a_scale_param",  # The name of the parameter
         set_muscle_ascale,  # The function that modifies the biorbd model
@@ -77,6 +87,47 @@ def prepare_ocp(
                          max_bound=[ascale_max],
                          interpolation=InterpolationType.CONSTANT)
     parameter_init["a_scale_param"] = ascale_init
+
+    if not only_parameter_a:
+        tau_1_scaling = VariableScaling("tau_1_param", np.array([1]))
+        parameters.add(
+            "tau_1_param",  # The name of the parameter
+            set_muscle_tau1_param,  # The function that modifies the biorbd model
+            size=1,  # The number of elements this particular parameter vector has
+            scaling=tau_1_scaling,
+        )
+        parameter_bounds.add("tau_1_param",
+                             min_bound=[tau_1_param_min],
+                             max_bound=[tau_1_param_max],
+                             interpolation=InterpolationType.CONSTANT)
+        parameter_init["tau_1_param"] = tau_1_param_init
+
+        tau_2_scaling = VariableScaling("tau_2_param", np.array([1]))
+        parameters.add(
+            "tau_2_param",  # The name of the parameter
+            set_muscle_tau2_param,  # The function that modifies the biorbd model
+            size=1,  # The number of elements this particular parameter vector has
+            scaling=tau_2_scaling,
+        )
+        parameter_bounds.add("tau_2_param",
+                             min_bound=[tau_2_param_min],
+                             max_bound=[tau_2_param_max],
+                             interpolation=InterpolationType.CONSTANT)
+        parameter_init["tau_2_param"] = tau_2_param_init
+
+        km_scaling = VariableScaling("km_param", np.array([1]))
+        parameters.add(
+            "km_param",  # The name of the parameter
+            set_muscle_km_param,  # The function that modifies the biorbd model
+            size=1,  # The number of elements this particular parameter vector has
+            scaling=km_scaling,
+        )
+        parameter_bounds.add("km_param",
+                             min_bound=[km_param_min],
+                             max_bound=[km_param_max],
+                             interpolation=InterpolationType.CONSTANT)
+        parameter_init["km_param"] = km_param_init
+
 
     model = ParamIdentDynamics(biorbd_model_path,
                                parameters=parameters,
@@ -91,6 +142,8 @@ def prepare_ocp(
     # set_muscle_tau1_param(model, params[1])
     # set_muscle_tau2_param(model, params[2])
     # set_muscle_km_param(model, params[3])
+    # get_muscle_ascale(model)
+    # model.model.muscle(0).characteristics().muscleDingTau1Param().to_mx()
 
     idx_crank = model.name_dof.index('Gear_RotZ')
     muscles = model.muscle_names
@@ -109,7 +162,7 @@ def prepare_ocp(
             phase_dynamics=phase_dynamics,
             with_contact=True,
             # with_resistive_torque=with_resistive_torque,
-            only_parameter_a=True,
+            only_parameter_a=only_parameter_a,
             # with_residual_torque=True,
             with_torque=with_torque,
             with_friction=with_friction,
@@ -123,8 +176,8 @@ def prepare_ocp(
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e-1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=1e0)
-    stim_flag = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
-    tau_target = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 0, 0, 0, 0, 0, 0, 0]
+    stim_flag = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    tau_target = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 8, 5, 3, 2, 0, 0, 0]
     # tau_target = stim_flag
     for node, node_target in enumerate(tau_target):
         # test
@@ -171,20 +224,10 @@ def prepare_ocp(
                        [0.7494364151304703]])
 
     x_bounds = BoundsList()
-    # x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
-    # x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
-    # x_bounds["qdot"].min[:, [0]] = dq_init[:, kni_pos_value_at, np.newaxis]  # so the contact points would be still
-    # x_bounds["qdot"].max[:, [0]] = dq_init[:, kni_pos_value_at, np.newaxis]  # so the contact points would be still
-    # setting the initial position for the legs and gear (starting from a position different from 0 or pi)
-    # x_bounds["q"].min[:, [0]] = q_init[:, kni_pos_value_at, np.newaxis]
-    # x_bounds["q"].max[:, [0]] = q_init[:, kni_pos_value_at, np.newaxis]
     x_bounds["q"] = model.bounds_from_ranges("q")
     x_bounds["q"].min[:, [0]] = q_init
     x_bounds["q"].max[:, [0]] = q_init
     x_bounds["qdot"] = model.bounds_from_ranges("qdot")
-    # x_bounds["qdot"].max[0, :] = [0]  # gear moving backwards only (negative velocity)
-    # x_bounds["qdot"].min[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
-    # x_bounds["qdot"].max[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
     x_bounds["qdot"][:, [0]] = 0.0  # no velocities at the start
 
     x_bounds.add("cn",
@@ -331,6 +374,7 @@ def main():
         # with_resistive_torque=True,
         final_time=phase_period * n_shooting,
         n_shooting=n_shooting,
+        only_parameter_a=False,
         **extra_params,
     )
 
@@ -346,7 +390,13 @@ def main():
     sol = ocp.solve(solver=solver)
 
     a_scale_param = sol.parameters["a_scale_param"]
+    tau_1_param = sol.parameters["tau_1_param"]
+    tau_2_param = sol.parameters["tau_2_param"]
+    km_param = sol.parameters["km_param"]
     print(f"Optimized a_scale_param: {a_scale_param}")
+    print(f"Optimized a_scale_param: {tau_1_param}")
+    print(f"Optimized a_scale_param: {tau_2_param}")
+    print(f"Optimized a_scale_param: {km_param}")
     # parameters.append(a_scale_param[0])
 
     sol.graphs()
