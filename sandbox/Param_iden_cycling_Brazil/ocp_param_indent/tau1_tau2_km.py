@@ -29,6 +29,9 @@ from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_a
     set_muscle_km_param, set_muscle_tau1_param
 from sandbox.custom_package.fes_objectives import FesObjective
 
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, \
+    update_parameters_value, get_coefficients_sqrd
+
 from casadi import MX
 
 def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: list, fes_params: list) -> np.ndarray:
@@ -406,20 +409,19 @@ def tau1_tau2_km_ident(ocp_parameters,
     parameters = [a_scale_param, tau_1_param, tau_2_param, km_param]
     print(f'Identified Parameters = {parameters}')
 
-    # if save_results:
-    #     from Param_iden_cycling.ocp_param_indent.common.params_handler import read_params, update_parameters_value
-    #     num_model = brbd.Model(model_path)
-    #     mus_names = num_model.muscleNames()
-    #     muscle_params = read_params(model_path, filename)
-    #     # for idx, mn in enumerate(mus_names):
-    #     #     m = mn.to_string()
-    #     print(f'Before we had the following parameters for muscle {muscle}: {muscle_params[muscle]}')
-    #     muscle_params[muscle][1] = tau_1_param
-    #     muscle_params[muscle][2] = tau_2_param
-    #     muscle_params[muscle][3] = km_param
-    #     update_parameters_value(filename, muscle, muscle_params[muscle])
-    #     muscle_params = read_params(model_path, filename)
-    #     print(f'Now we have the following parameters for muscle {muscle}: {muscle_params[muscle]}')
+    if save_results:
+        num_model = brbd.Model(model_path)
+        mus_names = num_model.muscleNames()
+        muscle_params = read_params(model_path, filename)
+        # for idx, mn in enumerate(mus_names):
+        #     m = mn.to_string()
+        print(f'Before we had the following parameters for muscle {muscle}: {muscle_params[muscle]}')
+        muscle_params[muscle][1] = tau_1_param
+        muscle_params[muscle][2] = tau_2_param
+        muscle_params[muscle][3] = km_param
+        update_parameters_value(filename, muscle, muscle_params[muscle])
+        muscle_params = read_params(model_path, filename)
+        print(f'Now we have the following parameters for muscle {muscle}: {muscle_params[muscle]}')
 
     # --- Show results --- #
     # sol.print_cost()

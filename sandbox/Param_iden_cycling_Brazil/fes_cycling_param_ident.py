@@ -141,18 +141,8 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        # tau1_tau2_km_ident(ocp_parameters,
-        #                    problem_params,
-        #                    muscle_params_file,
-        #                    save_results,
-        #                    plot_graphs,
-        #                    show_animate)
-        a_relation_ident(ocp_parameters,
-                           problem_params,
-                           muscle_params_file,
-                           save_results,
-                           plot_graphs,
-                           show_animate)
+        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results,plot_graphs,show_animate)
         # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
         # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, print_flag, show_animate)
