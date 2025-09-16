@@ -18,6 +18,24 @@ only_parameter_a = False
 with_residual_torque = False
 
 
+def get_initial_position():
+    # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
+    from sandbox.cycling_torque import main as main_torque
+    if not os.path.isfile(dump_path):
+        print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
+        biorbd_model_path = 'models/legcyc.bioMod'
+        q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
+        main_torque(biorbd_model_path, dump_path, q_init)
+    sol_dict = pickle.load(open(dump_path, 'rb'))
+    qvec = np.array(unpack_sol(sol_dict["q"])).T
+
+    return qvec
+
+
+
+
+
 def main():
     # PROBLEM PARAMETERS TO BE SET EACH TIME
     data_information = [
@@ -37,6 +55,8 @@ def main():
     print_flag = False           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
     show_animate = True        # for an additional visualization of the OCP resulting animation
+
+    qvec = get_initial_position()
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
@@ -64,17 +84,6 @@ def main():
                                                                      print_flag,
                                                                      contraction=1)
         mdl_param = read_params(model_path, muscle_params_file)[muscle]
-
-        # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
-        dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
-        from sandbox.cycling_torque import main as main_torque
-        if not os.path.isfile(dump_path):
-            print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
-            biorbd_model_path = 'models/legcyc.bioMod'
-            q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
-            main_torque(biorbd_model_path, dump_path, q_init)
-        sol_dict = pickle.load(open(dump_path, 'rb'))
-        qvec = np.array(unpack_sol(sol_dict["q"])).T
 
         # knee angles° and crank angles
         bio_model = BiorbdModel(model_path)
@@ -142,10 +151,10 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 
