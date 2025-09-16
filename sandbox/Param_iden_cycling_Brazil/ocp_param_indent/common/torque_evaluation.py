@@ -223,8 +223,8 @@ def data_for_ocp(torque_data, crank_angles, msr, offset_interval, stim_freq, win
                     idx2 = intervals[msr][interval_names[interval_cnt]][1][1]
 
                 ft_mp.append(torque_data[idx1:idx2])
-                idx1_stim = idx1 + offset_interval - 4
-                idx2_stim = idx2 - offset_interval - 16
+                idx1_stim = idx1 + offset_interval
+                idx2_stim = idx2 - offset_interval - 12
                 stim_flag[idx1_stim:idx2_stim] = 1    # todo: verify this value offset because pulse happens first
                 stim_dt.append(stim_flag[idx1:idx2])
                 angle.append(int(np.mean(angle_data[idx1_stim:idx2_stim])))
@@ -240,8 +240,8 @@ def data_for_ocp(torque_data, crank_angles, msr, offset_interval, stim_freq, win
                 idx1 = intervals[msr][name][1][0]
                 idx2 = intervals[msr][name][1][1]
             ft_mp.append(torque_data[idx1:idx2])
-            idx1_stim = idx1 + offset_interval - 4
-            idx2_stim = idx2 - offset_interval - 10
+            idx1_stim = idx1 + offset_interval
+            idx2_stim = idx2 - offset_interval - 12
             stim_flag[idx1_stim:idx2_stim] = 1    # todo: verify this value offset because pulse happens first
             stim_dt.append(stim_flag[idx1:idx2])
             angle.append(int(np.mean((angle_data[idx1:idx2]))))

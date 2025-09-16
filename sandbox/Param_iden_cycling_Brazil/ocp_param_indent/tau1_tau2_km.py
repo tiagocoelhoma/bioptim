@@ -33,18 +33,7 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler im
     update_parameters_value, get_coefficients_sqrd
 
 from casadi import MX
-
-def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: list, fes_params: list) -> np.ndarray:
-    if stim_flag[current_shooting_point] == 0:
-        return np.array([fes_params[0]] * n_channels)
-    else:
-        return np.array([fes_params[1]] * n_channels)
-
-
-def get_muscle_ascale(bio_model: BiorbdModel):
-    nb_mus = bio_model.model.nbMuscles()
-    for i in range(nb_mus):
-        print(bio_model.model.muscle(i).characteristics().muscleAscale().to_mx())
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import custom_u_bounds
 
 
 
@@ -87,7 +76,7 @@ def prepare_ocp(
     f_min, f_max, f_init = problem_parameters["f"]
     cn_min, cn_max, cn_init = problem_parameters["cn"]
     tau_min, tau_max, tau_init = problem_parameters["tau"]
-    fes_min, fes_max, fes_init, fes_sc = problem_parameters["fes"]
+    # fes_min, fes_max, fes_init, fes_sc = problem_parameters["fes"]
     ascale_min, ascale_max, ascale_init = problem_parameters["ascale"]
     km_param_min, km_param_max, km_param_init = problem_parameters["km"]
     tau_1_param_min, tau_1_param_max, tau_1_param_init = problem_parameters["tau_1"]
@@ -221,10 +210,10 @@ def prepare_ocp(
         max_value = np.max(tau_target[mask])
 
         for node, node_target in enumerate(tau_target):
-            weight = 1e2
-            weight = 1e5 if stim_flag[i][node] == 1 else weight
+            # weight = 1e2
+            # weight = 1e5 if stim_flag[i][node] == 1 else weight
             # weight = 1e6 if node_target == max_value else weight
-            # weight = 1e4
+            weight = 1e6
             objective_functions.add(
                 FesObjective.custom_func_maximize_crank_torque,
                 custom_type=ObjectiveFcn.Mayer,
@@ -287,7 +276,7 @@ def prepare_ocp(
             u_bounds.add("tau", min_bound=[tau_min] * nb_tau, max_bound=[tau_max] * nb_tau, phase=i)
             u_bounds[i]["tau"][:, [0]] = 0
 
-        extra_params_u = {"n_channels": 1, "stim_flag": stim_flag[i], "fes_params": [fes_min, fes_max, fes_init]}
+        extra_params_u = {"n_channels": 1, "stim_flag": stim_flag[i], "fes_params": problem_parameters["fes"]}
         u_bounds.add(
             "pw",
             min_bound=custom_u_bounds,
@@ -304,7 +293,7 @@ def prepare_ocp(
 
     u_init = InitialGuessList()
     u_scaling = VariableScalingList()
-    u_scaling["pw"] = [fes_max]     # 1channel only
+    u_scaling["pw"] = [problem_parameters["fes"]['fes_max']]     # 1channel only
 
     phase_transitions = PhaseTransitionList()
     for i in range(n_phases - 1):

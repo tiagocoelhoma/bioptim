@@ -52,9 +52,9 @@ def main():
     with_resistive_torque = True
                                 # the higher this number, the lower the number of shooting nodes in the problem
     save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
-    print_flag = False           # if one wants to have an additional visualization of the torque information
+    print_flag = True           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
-    show_animate = True        # for an additional visualization of the OCP resulting animation
+    show_animate = False        # for an additional visualization of the OCP resulting animation
 
     qvec = get_initial_position()
 
@@ -135,14 +135,14 @@ def main():
         pdt = 5.69997838e-04
         print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
 
-        fes = (pd0, 1600e-6, pd0, 800e-6)
-        fes = (pd0, 1600e-6, pd0, 800e-6) if muscle == 'bflh140_r' or muscle == 'bflh140_l' else fes
+        fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6}
+        fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6} if muscle == 'bflh140_r' or muscle == 'bflh140_l' else fes
         problem_params = {
             "f": (0, 5000, 0),  # f_min, f_max, f_init
             "cn": (0.0, 2.0, 0.0),  # cn_min, cn_max, cn_init
             "tau": (0.0, 0.0, 0.0),  # tau_min, tau_max, tau_init
             "fes": fes, # fes_min, fes_max (800+800us), fes_init, fes_sc (300+300us)
-            "ascale": (0, 10e3, 5e3),  # ascale_min, ascale_max, ascale_init
+            "ascale": (0, 50e3, 5e3),  # ascale_min, ascale_max, ascale_init
             "km": (0.020, 0.800, 0.30130779),  # km_param_min, km_param_max, km_param_init
             "tau_1": (0.010, 0.1, 0.06637256),  # tau_1_param_min, tau_1_param_max, tau_1_param_init
             "tau_2": (0.001, 0.2, 0.01),  # tau_2_param_min, tau_2_param_max, tau_2_param_init
@@ -151,10 +151,10 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
-        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 

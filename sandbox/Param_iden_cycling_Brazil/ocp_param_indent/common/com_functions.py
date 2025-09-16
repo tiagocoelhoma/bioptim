@@ -64,11 +64,17 @@ def set_muscle_v2_param(bio_model: BiorbdModel, value: MX):
         bio_model.model.muscle(i).characteristics().setMuscleDingV2Param(value)
 
 
-def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: list, fes_sc: float, fes_min: float) -> np.ndarray:
+def custom_u_bounds(current_shooting_point: int, n_channels: int, stim_flag: list, fes_params: list) -> np.ndarray:
     if stim_flag[current_shooting_point] == 0:
-        return np.array([fes_min] * n_channels)
+        return np.array([fes_params['fes_min']] * n_channels)
     else:
-        return np.array([fes_sc] * n_channels)
+        return np.array([fes_params['fes_sc']] * n_channels)
+
+
+def get_muscle_ascale(bio_model: BiorbdModel):
+    nb_mus = bio_model.model.nbMuscles()
+    for i in range(nb_mus):
+        print(bio_model.model.muscle(i).characteristics().muscleAscale().to_mx())
 
 
 def custom_phase_transition(

@@ -118,8 +118,9 @@ class FESConfigureVariables(ConfigureVariables):
     ):
         """
         """
-        n_pulse_trunc = 5  # todo fix this
+
         name_elements = []
+        n_pulse_trunc = 5   #extra_params['n_pulse_trunc'] Todo: pass this parameter automatically
         for i in range(n_pulse_trunc):
             name_elements.append(f'a{i + 1}')
         for i in range(nlp.model.nb_muscles):
@@ -447,7 +448,6 @@ class ParamIdentDynamics(CustomFesDynamics):
         with_residual_torque: bool = False,
         with_resistive_torque: bool = False,
         parameters: ParameterList = None,
-        n_pulse_trunc: int = 5,
         external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
         contact_types: list[ContactType] | tuple[ContactType] = (),
         fatigue: FatigueList = None,
@@ -484,7 +484,6 @@ class ParamIdentDynamics(CustomFesDynamics):
             prediction_flag: bool = False,
             only_parameter_a: bool = False,
             identification_flag: bool = False,
-            n_pulse_trunc: int = 0,
             **extra_params,
     ):
         # Get variables
@@ -501,7 +500,7 @@ class ParamIdentDynamics(CustomFesDynamics):
         nlp.model.set_gravity(MX([0, 0, 0]))
 
         t_phase = extra_params['t_phase']
-        # n_pulse_trunc = extra_params['n_pulse_trunc']
+        n_pulse_trunc = extra_params['n_pulse_trunc']
         pd0 = extra_params['pd0']
         pdt = extra_params['pdt']
         # fes_min = extra_params['fes_min']
@@ -511,7 +510,6 @@ class ParamIdentDynamics(CustomFesDynamics):
         ri = casadi.if_else(num_t_phase, 1 + (r0 - 1) * exp(-t_phase / tauc), 1)
 
         alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
-        # alpha_temp = MX.zeros(n_pulse_trunc)
         name_mus = nlp.model.muscle_names
 
         for m, muscle in enumerate(name_mus):
@@ -524,16 +522,10 @@ class ParamIdentDynamics(CustomFesDynamics):
                 tau2 = nlp.parameters["tau_2_param"].cx
                 km = nlp.parameters["km_param"].cx
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
-            # alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]
+            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
             # 1 channel only
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
             alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
-            alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
-            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
-            # offset = a_scale / (1 + np.exp(-(fes_min - pd0) / pdt))
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt)) - offset
-            # a_sc = a_scale / (1 + exp(-(pwd - pd0) / pdt))
             alpha_dot = (alpha_temp - alpha) / t_phase
             sum_aux = 0
             for i in range(n_pulse_trunc):
@@ -574,7 +566,6 @@ class ParamPredictionDynamics(CustomFesDynamics):
             with_residual_torque: bool = False,
             with_resistive_torque: bool = False,
             parameters: ParameterList = None,
-            n_pulse_trunc: int = 5,
             external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
             contact_types: list[ContactType] | tuple[ContactType] = (),
             fatigue: FatigueList = None,
@@ -610,7 +601,6 @@ class ParamPredictionDynamics(CustomFesDynamics):
             prediction_flag: bool = False,
             only_parameter_a: bool = False,
             identification_flag: bool = False,
-            n_pulse_trunc: int = 0,
             **extra_params,
     ):
         # Get variables
@@ -627,7 +617,7 @@ class ParamPredictionDynamics(CustomFesDynamics):
         nlp.model.set_gravity(MX([0, 0, 0]))
 
         t_phase = extra_params['t_phase']
-        # n_pulse_trunc = extra_params['n_pulse_trunc']
+        n_pulse_trunc = extra_params['n_pulse_trunc']
         pd0 = extra_params['pd0']
         pdt = extra_params['pdt']
         # fes_min = extra_params['fes_min']
@@ -648,10 +638,8 @@ class ParamPredictionDynamics(CustomFesDynamics):
 
             # knee_angle = q[joint_index[m]]
             # x = 1.6009166
-            # knee_angle = extra_parameters.get('knee_angle')
             knee_angle = extra_params['knee_angle']
             a_scale = (sum(c * knee_angle ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
-            # a_scale = 12559
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             # 1 channel only
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
