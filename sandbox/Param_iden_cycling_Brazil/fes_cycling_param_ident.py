@@ -38,8 +38,8 @@ def main():
     # PROBLEM PARAMETERS TO BE SET EACH TIME
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
-        ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, 25]],
-        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, 25]],
+        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, 25]],
+        ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, 25]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, 70]]
         # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
