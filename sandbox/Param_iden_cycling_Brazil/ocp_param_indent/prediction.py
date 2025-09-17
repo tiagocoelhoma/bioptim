@@ -22,11 +22,12 @@ from bioptim import (
     PhaseDynamics,
     DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType, ParameterList,
     ParameterObjectiveList, VariableScaling, InterpolationType, ConstraintFcn, PlotType,
-    BiorbdModel, PhaseTransitionList, PhaseTransitionFcn,
+    BiorbdModel, PhaseTransitionList, PhaseTransitionFcn, SolutionMerge,
 )
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import custom_u_bounds
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, \
     update_parameters_value, get_coefficients_sqrd
+from sandbox.Param_iden_cycling_Brazil.opt_sol_results.save_torques import salvar_torques
 
 # import the custom model
 from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale, set_muscle_tau2_param, \
@@ -300,7 +301,25 @@ def prediction(ocp_parameters,
         # nb_int = np.array(states["q"][0]).shape[1] - 1
         # predicted_torque = np.zeros(((nb_nodes - 1) * nb_int))
         # time_flat = np.zeros(((nb_nodes - 1) * nb_int))
-        predicted_torques.append(np.concatenate(sol.stepwise_controls()["resistive_torque"]))
+
+        predcted_tau = np.concatenate(sol.stepwise_controls()["resistive_torque"]).flatten()
+        predicted_torques.append(predcted_tau)
+        time = sol.stepwise_time(to_merge=SolutionMerge.ALL)
+
+        # states = sol.stepwise_states()
+        # nb_nodes = len(states["q"])
+        # nb_int = np.array(states["q"][0]).shape[1] - 1
+        # predicted_torque = np.zeros(((nb_nodes - 1) * nb_int))
+        # time_flat = np.zeros(((nb_nodes - 1) * nb_int))
+        # time = np.linspace(0, 1, len(tau_target_interpolated))
+
+        arquivo = "Param_iden_cycling_Brazil/opt_sol_results/pickles/torques_crankset.json"
+        salvar_torques(
+            arquivo, muscle, crank_ang[i],
+            torque_predito=predcted_tau,
+            torque_medido=tau_target[i]
+        )
+
     knee_angle.append(float(q_init_list[i][2]))
     #     crank_angle.append(float(q_init_list[i][0]))
     # ocp_parameters['crank_angle'] = crank_angle
@@ -314,12 +333,12 @@ def prediction(ocp_parameters,
         center = crank_ang[i]
         n = len(torque)
         x = np.arange(n) - n // 2 + center  # center the curve at the knee angle
-        plt.plot(x, torque, label=f'knee = {center}°')
-        plt.plot(x, predicted_torques[i], label=f'knee = {center}°', linestyle='dotted')
+        plt.plot(x, torque, label=f'measured = {center}°')
+        plt.plot(x, predicted_torques[i], label=f'predicted = {center}°', linestyle='dotted')
 
-    plt.xlabel("Knee angle (°)")
-    plt.ylabel("Torque (Nm)")
-    plt.title("Torque curves centered at their respective knee angles")
+    plt.xlabel("Crank angle (°)")
+    plt.ylabel("Torque [Nm]")
+    plt.title("Torque curves centered at their respective crank angles")
     plt.legend()
     plt.grid(True)
     plt.xticks(crank_ang)  # show only the knee angles if you want it cleaner

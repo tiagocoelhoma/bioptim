@@ -8,15 +8,6 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.torque_evaluation
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.prediction import prediction
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
 
-# constant parameters
-stim_freq = 35                          # stimulation frequency in Hertz
-t_duration = round(1 / stim_freq, 6)    # duration of a stimulation pulse
-n_window = 5
-window_size = 10                        # window sized used for filtering torque data
-offset_interval = 15                    # torque data that will be used prior to the start of the contraction
-only_parameter_a = False
-with_residual_torque = False
-
 
 def get_initial_position():
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
@@ -33,8 +24,15 @@ def get_initial_position():
     return qvec
 
 
-
-
+# constant parameters
+stim_freq = 35                          # stimulation frequency in Hertz
+t_duration = round(1 / stim_freq, 6)    # duration of a stimulation pulse
+n_window = 5
+window_size = 10                        # window sized used for filtering torque data
+offset_interval = 10                    # torque data that will be used prior to the start of the contraction
+with_residual_torque = False
+with_friction = False
+with_resistive_torque = True
 
 def main():
     # PROBLEM PARAMETERS TO BE SET EACH TIME
@@ -48,11 +46,9 @@ def main():
         # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
-    with_friction = False
-    with_resistive_torque = True
-                                # the higher this number, the lower the number of shooting nodes in the problem
+
     save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
-    print_flag = True           # if one wants to have an additional visualization of the torque information
+    print_flag = False           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
     show_animate = False        # for an additional visualization of the OCP resulting animation
 
@@ -113,7 +109,6 @@ def main():
             'n_phases': len(tau_target),
             'joint_angle': crank_ang,
             'params': mdl_param,
-            # 'only_parameter_a': only_parameter_a,
             'muscle': muscle,
             'stim_freq': stim_freq,
         }
@@ -125,10 +120,6 @@ def main():
         # pd0 = data[muscle][1]
         # pdt = data[muscle][2]
 
-        # need to be reviewed
-        a = 1
-        pd0 = 0.00011785  # average value
-        pdt = 0.00086029  # average value
         # Fitted Parameters:
         a = 1.05493875e+00
         pd0 = 1.11878174e-04
@@ -151,7 +142,7 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
         prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)

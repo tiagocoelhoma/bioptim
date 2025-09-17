@@ -21,14 +21,7 @@ from typing import Callable
 
 
 # Model parameters
-tauc = 0.011  # 11ms
-# pd0 = 0.000086  # average value
-pdt = 0.000138  # average value
-# km = 0.180
-# tau1 = 0.044099
-# tau2 = 0.018522
-# a_scale = 5000
-# stim_amp = 1
+tauc = 0.011  # 11ms or 20ms?
 r0 = 5
 scaling_factor = 1e6  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
 
@@ -350,7 +343,8 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
 
         t_phase = extra_params['t_phase']
         n_pulse_trunc = extra_params['n_pulse_trunc']
-        pd_offset = extra_params['pd_offset']
+        pd0 = extra_params['pd0']
+        pdt = extra_params['pdt']
         joint_index = extra_params['joint_index']
 
         num_t_phase = casadi.floor(time / t_phase)  # geting the time of the last pulse
@@ -372,18 +366,18 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
             if identification_flag or prediction_flag:  # 1 stimulation channel only
-                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd_offset)))
-                a_sc = a_scale * (1 - exp(-(pwd - pd_offset) / pdt))
+                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
+                a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
             else:
-                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd_offset)))
+                a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))
                 a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
-                a_sc = a_scale * (1 - exp(-(pwd[m] - pd_offset) / pdt))
+                a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
             if prediction_flag or fes_driven_task_flag: # a_scale depending on the knee angle
                 coef = extra_params.get('muscle_params')[muscle][0]
                 x = q[joint_index[m]]
                 a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
                 a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
-                a_sc = a_scale * (1 - exp(-(pwd[m] - pd_offset) / pdt))
+                a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
             alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
             alpha_dot = (alpha_temp - alpha) / t_phase
             sum_aux = 0
