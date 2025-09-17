@@ -54,6 +54,7 @@ angles_list = []      # para cores (ângulos)
 subjects_list = []    # para marcadores (músculos)
 
 for muscle, angles in data.items():
+    # todo: verify how to use only preselected crank angles to include to the plot
     for ang_key, vals in angles.items():
         dt = get_dt(DT, ang_key)                 # seu dt (float ou por ângulo)
         tti_meas = tti(vals["torque_medido"], dt)

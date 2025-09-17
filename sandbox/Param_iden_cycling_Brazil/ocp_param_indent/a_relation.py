@@ -270,7 +270,8 @@ def a_relation_ident(ocp_parameters,
                      filename,
                      save_results=False,
                      plot_graphs=False,
-                     show_animate=False):
+                     show_animate=False,
+                     print_flag=True):
     model_path = ocp_parameters['biorbd_model_path']
     q_init_list = ocp_parameters['q_init']
     with_friction = ocp_parameters['with_friction']
@@ -341,7 +342,7 @@ def a_relation_ident(ocp_parameters,
     print(f'a_scale_values = {parameters}')
     a_params = [round(a, 4) for a in parameters]
     muscle_params = read_params(model_path, filename)
-    muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, True)
+    muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, print_flag)
     if save_results:
         update_parameters_value(filename, muscle, muscle_params[muscle])
 

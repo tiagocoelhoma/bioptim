@@ -313,12 +313,13 @@ def prediction(ocp_parameters,
         # time_flat = np.zeros(((nb_nodes - 1) * nb_int))
         # time = np.linspace(0, 1, len(tau_target_interpolated))
 
-        arquivo = "Param_iden_cycling_Brazil/opt_sol_results/pickles/torques_crankset.json"
-        salvar_torques(
-            arquivo, muscle, crank_ang[i],
-            torque_predito=predcted_tau,
-            torque_medido=tau_target[i]
-        )
+        if save_results:
+            arquivo = "Param_iden_cycling_Brazil/opt_sol_results/pickles/torques_crankset.json"
+            salvar_torques(
+                arquivo, muscle, crank_ang[i],
+                torque_predito=predcted_tau,
+                torque_medido=tau_target[i]
+            )
 
     knee_angle.append(float(q_init_list[i][2]))
     #     crank_angle.append(float(q_init_list[i][0]))
