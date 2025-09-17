@@ -19,9 +19,9 @@ if crank_opt_flag:
 
 else:
     # for original crank
-    model_path = "legcyc_rectfem_r.bioMod"
+    # model_path = "legcyc_rectfem_r.bioMod"
     # model_path = "leg_model_cyclic_muscle_inversed_root_3.bioMod"
-    # model_path = "legcyc_hams_r.bioMod"
+    model_path = "legcyc_hams_r.bioMod"
     q_init = np.array([[-2.09], [1.3758], [1.5722], [0.1631], [0.8935], [1.9052], [0.2907]])
     q_init = np.array([[-6.349995], [5.297289], [2.034617], [-0.058011], [5.637115], [1.234664], [0.468416]])
     q_init = np.array([[-6.2831],[5.3187],[1.8995],[-0.0717],[5.7158],[1.0079],[0.5319]])
