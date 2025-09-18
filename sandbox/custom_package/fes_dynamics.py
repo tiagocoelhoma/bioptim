@@ -840,18 +840,23 @@ class FESCyclingDynamics(CustomFesDynamics):
         alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
         alpha_temp = MX.zeros(n_pulse_trunc)
         name_mus = nlp.model.muscle_names
-        fes_driven_task_flag = False
+
         for m, muscle in enumerate(name_mus):
             a_scale, tau1, tau2, km = CustomFesDynamics.get_ding_params(nlp.model, m)
+
+            coef = muscle_params[muscle][0]
+            tau1 = muscle_params[muscle][1]
+            # tau2 = muscle_params[muscle][2]  # todo if i add tau_2 it does not converge
+            km = muscle_params[muscle][3]
 
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
 
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))
-
-            coef = extra_params.get('muscle_params')[muscle][0]
             x = q[joint_index[m]]
-            if prediction_flag or fes_driven_task_flag:  # a_scale depending on the knee angle
+
+            fes_driven_task_flag = True
+            if fes_driven_task_flag:  # a_scale depending on the knee angle
                 a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
 
             a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
