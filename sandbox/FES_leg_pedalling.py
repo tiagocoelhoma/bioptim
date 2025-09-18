@@ -2,10 +2,13 @@
 This script doesn't use biorbd
 This an example of how to use bioptim to solve a simple pendulum problem
 """
+import os
+import pickle
 
 import numpy as np
 
 from bioptim import (
+    BiorbdModel,
     OptimalControlProgram,
     BoundsList,
     InitialGuessList,
@@ -19,19 +22,24 @@ from bioptim import (
     PhaseDynamics,
     DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType,
 )
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params
 
 # import the custom model
-from sandbox.custom_package.fes_dynamics import CustomFesDynamics
+from sandbox.custom_package.fes_dynamics import FESCyclingDynamics, CustomFesDynamics
 
 
 def prepare_ocp(
-    model: CustomFesDynamics,
+    biorbd_model_path: str,
     final_time: float,
     n_shooting: int,
+    q_init: np.array,
     with_torque: bool = False,
     with_friction: bool = False,
     max_joint_torque: float = 0.0,
-    ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
+    target_power: int = 0,
+    target_velocity: float = 0,
+    ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     n_threads: int = 16,
     expand_dynamics: bool = True,
@@ -47,6 +55,16 @@ def prepare_ocp(
     -------
     The OptimalControlProgram ready to be solved
     """
+
+    model=FESCyclingDynamics(biorbd_model_path,
+                             with_contact=True,
+                             with_residual_torque=with_torque,
+                             **extra_params)
+    # model=CustomFesDynamics(biorbd_model_path,
+    #                          with_contact=True,
+    #                          with_residual_torque=with_torque,
+    #                          **extra_params)
+
     idx_crank = model.name_dof.index('Gear_RotZ')
     muscles = model.muscle_names
     right_muscles = [m for m in muscles if m.endswith('_r')]
@@ -63,7 +81,6 @@ def prepare_ocp(
             expand_dynamics=expand_dynamics,
             phase_dynamics=phase_dynamics,
             with_contact=True,
-            fes_driven_task_flag=False, # todo to be changed
             with_torque=with_torque,
             with_friction=with_friction,
             **extra_params,
@@ -90,23 +107,24 @@ def prepare_ocp(
     #         weight=1e3,
     #     )
 
+    # objective_functions.add(
+    #     ObjectiveFcn.Mayer.TRACK_STATE,
+    #     key="qdot",
+    #     index=idx_crank,
+    #     node=Node.ALL,
+    #     target=target_velocity,
+    #     # target= dq_init[0, kni_pos_value_at],
+    #     weight=1e3,
+    # )
     objective_functions.add(
-        ObjectiveFcn.Mayer.TRACK_STATE,
+        ObjectiveFcn.Lagrange.TRACK_STATE,
+        # ObjectiveFcn.Mayer.TRACK_STATE,
+        # node=Node.ALL,
         key="qdot",
         index=idx_crank,
-        node=Node.ALL,
-        target=-4.4,
-        # target= dq_init[0, kni_pos_value_at],
+        target=target_velocity,
         weight=1e3,
     )
-    q_init = np.array([[-6.2831], [5.0917], [1.9391], [0.2198], [5.659], [0.9176], [0.6453]])
-    q_init = np.array([[-7.512679802050503],
-                       [6.582997425587252],
-                       [1.8543485578570926],
-                       [0.2360338186026125],
-                       [6.3928748389662164],
-                       [1.492368547948381],
-                       [0.7494364151304703]])
 
     x_bounds = BoundsList()
     # x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
@@ -142,12 +160,13 @@ def prepare_ocp(
     u_bounds = BoundsList()
     # gear, pedal_r, pedal_l, knee_r, knee_l, hip_r, hip_l
     # negative torque and positive torque would correspond to the flexor and extensor muscle activation
-    # if with_friction:
-    #     u_bounds["resistive_torque"] = ([0], [10])    # torque positive at the gear
-    # if with_torque:
-    #     u_bounds["tau"] = (
-    #         [0, 0, 0, 0, 0, 0, 0],
-    #         [max_joint_torque, 0, 0, 0, 0, 0, 0])
+    if with_torque:
+        u_bounds["tau"] = (
+            [-max_joint_torque, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0])
+        # u_bounds["tau"].min[:, :] = 0
+        # u_bounds["tau"].max[:, :] = 0
+        # u_bounds["tau"].min[[0], [0]] = -max_joint_torque
     u_bounds.add("pw",
                  min_bound=[fes_min] * model.nb_muscles,
                  max_bound=[fes_max] * model.nb_muscles)
@@ -175,6 +194,32 @@ def prepare_ocp(
         n_threads=n_threads,
     )
 
+def find_nearest(q_pos, value, idx_dof=0):
+    array = np.asarray(q_pos[idx_dof,:] % (-2 * np.pi))
+    array = np.asarray(q_pos[idx_dof,:] % (2 * np.pi)) if q_pos[idx_dof,0] > 0 else array
+    idx = (np.abs(array - value)).argmin()
+    return q_pos[:,idx, np.newaxis]
+
+
+def get_initial_position(crank_angle=80):
+    # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/Fes_leg_pedalling'
+    from sandbox.cycling_torque import main as main_torque
+    if not os.path.isfile(dump_path):
+        print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
+        biorbd_model_path = 'models/legcyc.bioMod'
+        q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
+        main_torque(biorbd_model_path, dump_path, q_init)
+    sol_dict = pickle.load(open(dump_path, 'rb'))
+    qvec = np.array(unpack_sol(sol_dict["q"])).T
+
+    q_init = find_nearest(qvec[:, 0:25],
+                         value=-((crank_angle / 180) * np.pi),
+                         idx_dof=0)
+
+    return q_init
+
+
 
 # PROBLEM PARAMETERS
 f_min, f_max, f_init = 0, 2000, 0
@@ -186,7 +231,9 @@ pd_offset = fes_min
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
-n_shooting = 20
+pd0 = 1.11878174e-04
+pdt = 5.69997838e-04
+
 
 def main():
     """
@@ -195,18 +242,49 @@ def main():
     biorbd_model_path = "models/legcyc.bioMod"
     # biorbd_model_path = "models/leg4.bioMod"
     # --- Prepare the ocp --- #
-    joint_idx = 0
+
+    filename = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
+    muscle_params = read_params(biorbd_model_path, filename)
+
+    for m, muscle_name in enumerate(muscle_params):
+        vec = muscle_params[muscle_name][0]
+        if len(vec) < 6:
+            padded_vec = np.pad(vec, (6 - len(vec), 0), mode='constant', constant_values=0)
+            muscle_params[muscle_name][0] = padded_vec.tolist()
+
+    # filename = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/pd0ptt.pkl'
+    # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
+
+    friction_coef_b=0.78
+    friction_coef_mu=0.05
+    target_velocity_rpm=41.92
+    target_power=25.0
+    target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
+    torque_crank = target_power / target_v
+    friction_coef_b = round(torque_crank / target_v, 4)
+
+    with_residual_torque = True
+    n_shooting = 15
+    max_joint_torque = 50
     extra_params = {'t_phase': phase_period,
                     'n_pulse_trunc': n_pulse_trunc,
                     'pd_offset': pd_offset,
-                    'joint_index': joint_idx,
-                    # 'validation_flag': False,
+                    'muscle_params': muscle_params,
+                    'pd0': pd0,
+                    'pdt': pdt,
+                    'friction_coef_mu': friction_coef_mu,
+                    'friction_coef_b': friction_coef_b,
                     }
+    q_init = get_initial_position(crank_angle=80)
     ocp = prepare_ocp(
-        # model=CustomFesDynamics(biorbd_model_path, contact_types=[ContactType.RIGID_EXPLICIT], with_contact=True, with_residual_torque=True, **extra_params),
-        model=CustomFesDynamics(biorbd_model_path, with_contact=True, with_residual_torque=False, **extra_params),
+        biorbd_model_path,
         final_time=phase_period * n_shooting,
+        max_joint_torque=max_joint_torque,
+        with_torque=with_residual_torque,
         n_shooting=n_shooting,
+        q_init=q_init,
+        target_power=target_power,
+        target_velocity=target_v,
         **extra_params,
     )
 
@@ -217,7 +295,7 @@ def main():
     # ocp.print(to_console=True, to_graph=False)
 
     # --- Solve the ocp --- #
-    solver = Solver.IPOPT(show_online_optim=True)
+    solver = Solver.IPOPT(show_online_optim=False)
     solver.set_maximum_iterations(1000)
     sol = ocp.solve(solver=solver)
     sol.graphs()
