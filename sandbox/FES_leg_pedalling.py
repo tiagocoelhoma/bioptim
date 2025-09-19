@@ -41,7 +41,7 @@ def prepare_ocp(
     target_velocity: float = 0,
     ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
-    n_threads: int = 16,
+    n_threads: int = 12,
     expand_dynamics: bool = True,
     **extra_params,
 ) -> OptimalControlProgram:
@@ -107,22 +107,13 @@ def prepare_ocp(
     #         weight=1e3,
     #     )
 
-    # objective_functions.add(
-    #     ObjectiveFcn.Mayer.TRACK_STATE,
-    #     key="qdot",
-    #     index=idx_crank,
-    #     node=Node.ALL,
-    #     target=target_velocity,
-    #     # target= dq_init[0, kni_pos_value_at],
-    #     weight=1e3,
-    # )
     objective_functions.add(
-        ObjectiveFcn.Lagrange.TRACK_STATE,
-        # ObjectiveFcn.Mayer.TRACK_STATE,
-        # node=Node.ALL,
+        ObjectiveFcn.Mayer.TRACK_STATE,
         key="qdot",
         index=idx_crank,
+        node=Node.ALL,
         target=target_velocity,
+        # target= dq_init[0, kni_pos_value_at],
         weight=1e3,
     )
 
@@ -164,9 +155,9 @@ def prepare_ocp(
         u_bounds["tau"] = (
             [-max_joint_torque, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0])
-        # u_bounds["tau"].min[:, :] = 0
-        # u_bounds["tau"].max[:, :] = 0
-        # u_bounds["tau"].min[[0], [0]] = -max_joint_torque
+        u_bounds["tau"].min[:, :] = 0
+        u_bounds["tau"].max[:, :] = 0
+        u_bounds["tau"].min[[0], [0]] = -max_joint_torque
     u_bounds.add("pw",
                  min_bound=[fes_min] * model.nb_muscles,
                  max_bound=[fes_max] * model.nb_muscles)
@@ -178,7 +169,7 @@ def prepare_ocp(
 
     u_init = InitialGuessList()
     u_scaling = VariableScalingList()
-    u_scaling["pw"] = [1e-3] * model.nb_muscles
+    u_scaling["pw"] = [fes_max] * model.nb_muscles
 
     return OptimalControlProgram(
         model,
@@ -225,14 +216,18 @@ def get_initial_position(crank_angle=80):
 f_min, f_max, f_init = 0, 2000, 0
 cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
-fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6  # todo: verificar scala?
+# fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6  # todo: verificar scala?
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
-pd_offset = fes_min
+# pd_offset = fes_min
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
-pd0 = 1.11878174e-04
-pdt = 5.69997838e-04
+# pd0 = 1.11878174e-04
+# pdt = 5.69997838e-04
+
+pd0 = 0.0001684
+pdt = 0.0002979
+fes_min, fes_max, fes_init = pd0, 1600e-6, pd0  # todo: verificar scala?
 
 
 def main():
@@ -263,12 +258,12 @@ def main():
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)
 
-    with_residual_torque = True
+    with_residual_torque = False
     n_shooting = 15
     max_joint_torque = 50
     extra_params = {'t_phase': phase_period,
                     'n_pulse_trunc': n_pulse_trunc,
-                    'pd_offset': pd_offset,
+                    # 'pd_offset': pd_offset,
                     'muscle_params': muscle_params,
                     'pd0': pd0,
                     'pdt': pdt,
