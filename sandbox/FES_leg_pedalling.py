@@ -290,7 +290,7 @@ def main():
     # ocp.print(to_console=True, to_graph=False)
 
     # --- Solve the ocp --- #
-    solver = Solver.IPOPT(show_online_optim=False)
+    solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
     solver.set_maximum_iterations(1000)
     sol = ocp.solve(solver=solver)
     sol.graphs()

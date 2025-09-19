@@ -25,7 +25,7 @@ from typing import Callable
 # pdt = 0.000138  # average value Ding 2007
 tauc = 0.011  # 11ms or 20ms?
 r0 = 5
-scaling_factor = 1e6  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
+scaling_factor = 1e7  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
 
 
 def set_muscle_ascale(bio_model: BiorbdModel, value: MX):
@@ -744,22 +744,22 @@ class FESCyclingDynamics(CustomFesDynamics):
         for m, muscle in enumerate(name_mus):
             a_scale, tau1, tau2, km = CustomFesDynamics.get_ding_params(nlp.model, m)
 
-            # coef = muscle_params[muscle][0]
-            # tau1 = muscle_params[muscle][1]
-            # tau2 = muscle_params[muscle][2]  # todo if i add tau_2 it does not converge
-            # km = muscle_params[muscle][3]
+            coef = muscle_params[muscle][0]
+            tau1 = muscle_params[muscle][1]
+            tau2 = muscle_params[muscle][2]  # todo if i add tau_2 it does not converge
+            km = muscle_params[muscle][3]
 
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
 
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))
             x = q[joint_index[m]]
+            x = MX(1.76)
+            # fes_driven_task_flag = False
+            # if fes_driven_task_flag:  # a_scale depending on the knee angle
+            a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
 
-            fes_driven_task_flag = False
-            if fes_driven_task_flag:  # a_scale depending on the knee angle
-                a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
-
-            a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
+            # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
             a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
             alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
             alpha_dot = (alpha_temp - alpha) / t_phase
