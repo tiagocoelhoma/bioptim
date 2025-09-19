@@ -21,6 +21,8 @@ from typing import Callable
 
 
 # Model parameters
+# pd0 = 0.000086  # average value Ding 2007
+# pdt = 0.000138  # average value Ding 2007
 tauc = 0.011  # 11ms or 20ms?
 r0 = 5
 scaling_factor = 1e6  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
@@ -392,7 +394,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         ri = casadi.if_else(num_t_phase, 1 + (r0 - 1) * exp(-t_phase / tauc), 1)
 
         alpha_dot_list, f_dot_list, cn_dot_list = [], [], []
-        alpha_temp = MX.zeros(n_pulse_trunc)
+        # alpha_temp = MX.zeros(n_pulse_trunc)
         name_mus = self.muscle_names
 
         for m, muscle in enumerate(name_mus):
@@ -404,14 +406,12 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
                     tau2 = nlp.parameters["tau_2_param"].cx
                     km = nlp.parameters["km_param"].cx
 
-            alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
-            alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
             if identification_flag or prediction_flag:  # 1 stimulation channel only
                 a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
                 a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
             else:
                 a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))
-                a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
+                # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
                 a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
             if prediction_flag or fes_driven_task_flag: # a_scale depending on the knee angle
                 coef = extra_params.get('muscle_params')[muscle][0]
@@ -419,7 +419,11 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
                 a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
                 a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
                 a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
-            alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
+
+            alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
+            alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
+            # alpha_temp[1:n_pulse_trunc] = alpha[:n_pulse_trunc - 1]  # shift to the right (1 position)
+            # alpha_temp[0] = (a - 0.5) / 0.5  # normalize alpha between 0 and 1
             alpha_dot = (alpha_temp - alpha) / t_phase
             sum_aux = 0
             for i in range(n_pulse_trunc):

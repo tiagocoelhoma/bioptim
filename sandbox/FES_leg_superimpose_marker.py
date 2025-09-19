@@ -128,12 +128,12 @@ def prepare_ocp(
     u_bounds.add("pw",
                  min_bound=[fes_min] * model.nb_muscles,
                  max_bound=[fes_max] * model.nb_muscles)
-    u_bounds["pw"][:, [0]] = fes_init
+    u_bounds["pw"][:, [0]] = fes_min
 
     u_init = InitialGuessList()
 
     u_scaling = VariableScalingList()
-    u_scaling["pw"] = [1e-3] * model.nb_muscles
+    u_scaling["pw"] = [fes_max] * model.nb_muscles
 
     return OptimalControlProgram(
         model,
@@ -151,16 +151,20 @@ def prepare_ocp(
 
 
 # PROBLEM PARAMETERS
+
+pd0 = 0.0001684
+pdt = 0.0002979
+
 f_min, f_max, f_init = 0, 2000, 0
 cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
-fes_min, fes_max, fes_init = 86e-6, 800e-6, 86e-6  # todo: verificar scala?
+fes_min, fes_max, fes_init = pd0, 800e-6, pd0  # todo: verificar scala?
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 pd_offset = fes_min
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
-n_shooting = 30
+n_shooting = 40
 
 def main():
     """
@@ -173,12 +177,14 @@ def main():
     extra_params = {'t_phase': phase_period,
                     'n_pulse_trunc': n_pulse_trunc,
                     'pd_offset': pd_offset,
-                    'joint_index': joint_idx,
+                    'idx_crank': joint_idx,
+                    'pd0': pd0,
+                    'pdt': pdt,
                     # 'validation_flag': False,
                     }
     ocp = prepare_ocp(
         # model=MusclesWithExcitationsBiorbdModel(biorbd_model_path, with_residual_torque=True),
-        model=CustomFesDynamics(biorbd_model_path, with_residual_torque=True, **extra_params),
+        model=CustomFesDynamics(biorbd_model_path, with_residual_torque=False, **extra_params),
         final_time=phase_period * n_shooting,
         n_shooting=n_shooting,
         **extra_params,
