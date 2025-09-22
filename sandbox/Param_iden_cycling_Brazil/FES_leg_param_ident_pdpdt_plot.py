@@ -212,14 +212,14 @@ def fitted_parameters(torque_data, mus, window_size, offset_interval):
 
     return params, norm_torque, pw, muscle_labels
 
-def main():
+def main(print_flag=True):
     data_file = {
-        'rect_fem_r':   "data_exp/files/20250627_112633_1st_iso_meas_RF.txt",
-        'vasmed_r':     "data_exp/files/20250627_115217_1st_meas_VM.txt",
-        'bflh140_r':    "data_exp/files/20250627_114039_1st_iso_meas_HAM.txt",
-        'rect_fem_l':   "data_exp/files/20250627_144915_1st_iso_meas_RF_L.txt",
-        'vasmed_l':     "data_exp/files/20250627_150638_1st_iso_meas_VM_L.txt",
-        'bflh140_l':    "data_exp/files/20250627_145728_1sr_iso_meas_HAM_L.txt",
+        'rect_fem_r':   "Param_iden_cycling_Brazil/data_exp/files/20250627_112633_1st_iso_meas_RF.txt",
+        'vasmed_r':     "Param_iden_cycling_Brazil/data_exp/files/20250627_115217_1st_meas_VM.txt",
+        'bflh140_r':    "Param_iden_cycling_Brazil/data_exp/files/20250627_114039_1st_iso_meas_HAM.txt",
+        'rect_fem_l':   "Param_iden_cycling_Brazil/data_exp/files/20250627_144915_1st_iso_meas_RF_L.txt",
+        'vasmed_l':     "Param_iden_cycling_Brazil/data_exp/files/20250627_150638_1st_iso_meas_VM_L.txt",
+        'bflh140_l':    "Param_iden_cycling_Brazil/data_exp/files/20250627_145728_1sr_iso_meas_HAM_L.txt",
     }
 
     normalized_torque, pw, muscle_labels = [], [], []
@@ -250,76 +250,78 @@ def main():
                                    )
 
 
+    if print_flag:
+        # plt.scatter(pw, normalized_torque)
+        # plt.plot(pw_values_filtered, fitted_torque_filtered, label="Fitted Curve", color="red")
+        # plt.show()
 
-    # plt.scatter(pw, normalized_torque)
-    # plt.plot(pw_values_filtered, fitted_torque_filtered, label="Fitted Curve", color="red")
-    # plt.show()
+        # Define a color per muscle
+        muscles = sorted(set(muscle_labels))
+        colors = plt.cm.tab10(range(len(muscles)))  # or use custom: ['red', 'blue', 'green', ...]
 
-    # Define a color per muscle
-    muscles = sorted(set(muscle_labels))
-    colors = plt.cm.tab10(range(len(muscles)))  # or use custom: ['red', 'blue', 'green', ...]
+        # muscle_to_color = {mus: col for mus, col in zip(muscles, colors)}
+        a, pd0, pdt = params[0], params[1], params[2]
+        a_, pd0_, pdt_ = a_/6, pd0_/6, pdt_/6
+        avr_params = [a_, pd0_, pdt_]
 
-    # muscle_to_color = {mus: col for mus, col in zip(muscles, colors)}
-    a, pd0, pdt = params[0], params[1], params[2]
-    a_, pd0_, pdt_ = a_/6, pd0_/6, pdt_/6
-    avr_params = [a_, pd0_, pdt_]
+        pw_values_filtered = np.linspace(min(pw), max(pw), 1000)
 
-    pw_values_filtered = np.linspace(min(pw), max(pw), 1000)
+        plt.figure(figsize=(8, 5))
+        fitted_torque_filtered = scaled_sigmoid_1(pw_values_filtered, *params)
+        print("Fitted Parameters:", params)
+        plt.plot(pw_values_filtered, fitted_torque_filtered,
+                 label=f"$a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs",
+                 color="black", linewidth=1, linestyle='dashed')
 
-    plt.figure(figsize=(8, 5))
-    fitted_torque_filtered = scaled_sigmoid_1(pw_values_filtered, *params)
-    print("Fitted Parameters:", params)
-    plt.plot(pw_values_filtered, fitted_torque_filtered,
-             label=f"$a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs",
-             color="black", linewidth=1, linestyle='dashed')
+        fitted_torque_filtered = scaled_sigmoid_1(pw_values_filtered, *avr_params)
+        print("Fitted Parameters:", avr_params)
+        plt.plot(pw_values_filtered, fitted_torque_filtered,
+                 # label=f"Fitted Curve (average) $a$={a_:.2f}, $pd_0$={pd0_ * 1e6:.1f} µs, $pd_t$={pdt_ * 1e6:.1f} µs",
+                 label=f"$a$={a_:.2f}, $pd_0$={pd0_ * 1e6:.1f} µs, $pd_t$={pdt_ * 1e6:.1f} µs",
+                 color="black", linewidth=1, linestyle='dotted')
 
-    fitted_torque_filtered = scaled_sigmoid_1(pw_values_filtered, *avr_params)
-    print("Fitted Parameters:", avr_params)
-    plt.plot(pw_values_filtered, fitted_torque_filtered,
-             # label=f"Fitted Curve (average) $a$={a_:.2f}, $pd_0$={pd0_ * 1e6:.1f} µs, $pd_t$={pdt_ * 1e6:.1f} µs",
-             label=f"$a$={a_:.2f}, $pd_0$={pd0_ * 1e6:.1f} µs, $pd_t$={pdt_ * 1e6:.1f} µs",
-             color="black", linewidth=1, linestyle='dotted')
+        markers = ['o', 's', '^', 'D', 'v', 'P', '*', 'X', '<', '>']  # as many as needed
+        # Assign each muscle a color and marker
+        style_map = {mus: (colors[i % len(colors)], markers[i % len(markers)]) for i, mus in enumerate(muscles)}
 
-    markers = ['o', 's', '^', 'D', 'v', 'P', '*', 'X', '<', '>']  # as many as needed
-    # Assign each muscle a color and marker
-    style_map = {mus: (colors[i % len(colors)], markers[i % len(markers)]) for i, mus in enumerate(muscles)}
-
-    # for mus in muscles:
-    #     idx = muscle_labels == mus
-    #     color, marker = style_map[mus]
-    #     plt.scatter(pw[idx], normalized_torque[idx],
-    #                 color=color, marker=marker, label=mus, alpha=0.8, edgecolors='black')
-    for mus in muscles:
-        idx = [i for i, m in enumerate(muscle_labels) if m == mus]
-        color, marker = style_map[mus]
-        plt.scatter([pw[i] for i in idx],
-                    [normalized_torque[i] for i in idx],
-                    color=color,
-                    marker=marker,
-                    label=mus, alpha=0.8)
+        # for mus in muscles:
+        #     idx = muscle_labels == mus
+        #     color, marker = style_map[mus]
+        #     plt.scatter(pw[idx], normalized_torque[idx],
+        #                 color=color, marker=marker, label=mus, alpha=0.8, edgecolors='black')
+        for mus in muscles:
+            idx = [i for i, m in enumerate(muscle_labels) if m == mus]
+            color, marker = style_map[mus]
+            plt.scatter([pw[i] for i in idx],
+                        [normalized_torque[i] for i in idx],
+                        color=color,
+                        marker=marker,
+                        label=mus, alpha=0.8)
 
 
-    # plt.scatter(pw, normalized_torque, label="Normalized Data", color="blue", alpha=0.6)
-    # plt.plot(pw_values_filtered, fitted_torque_filtered,
-    #          label=f"Fitted Curve\n$a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs", color="blue")
+        # plt.scatter(pw, normalized_torque, label="Normalized Data", color="blue", alpha=0.6)
+        # plt.plot(pw_values_filtered, fitted_torque_filtered,
+        #          label=f"Fitted Curve\n$a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs", color="blue")
 
-    # Optional: confidence interval
-    # plt.fill_between(pw_values_filtered, lower, upper, color='red', alpha=0.2, label='95% Confidence Interval')
+        # Optional: confidence interval
+        # plt.fill_between(pw_values_filtered, lower, upper, color='red', alpha=0.2, label='95% Confidence Interval')
 
-    plt.title("Normalized Max Torque vs Pulse Duration\nFitted Scaled Sigmoid Curve")
-    plt.xlabel("Pulse duration (s)")
-    plt.ylabel("Normalized Max Torque")
-    plt.legend(loc="upper left", fontsize="8", frameon=False)
-    plt.savefig('opt_sol_results/images/pd0pdt.pdf', format='pdf', dpi=1600, bbox_inches='tight')
-    plt.grid(False)
+        plt.title("Normalized Max Torque vs Pulse Duration\nFitted Scaled Sigmoid Curve")
+        plt.xlabel("Pulse duration (s)")
+        plt.ylabel("Normalized Max Torque")
+        plt.legend(loc="upper left", fontsize="8", frameon=False)
+        plt.savefig('opt_sol_results/images/pd0pdt.pdf', format='pdf', dpi=1600, bbox_inches='tight')
+        plt.grid(False)
 
-    # Optional R^2
-    # r2 =1
-    # plt.text(0.00015, 0.05, f"$R^2$ = {r2:.3f}", fontsize=10)
+        # Optional R^2
+        # r2 =1
+        # plt.text(0.00015, 0.05, f"$R^2$ = {r2:.3f}", fontsize=10)
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    plt.show()
+        plt.show()
+
+    return avr_params
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ This an example of how to use bioptim to solve a simple pendulum problem
 """
 import os
 import pickle
-
+# import biorbd
 import numpy as np
 
 from bioptim import (
@@ -192,23 +192,27 @@ def find_nearest(q_pos, value, idx_dof=0):
     return q_pos[:,idx, np.newaxis]
 
 
-def get_initial_position(crank_angle=80):
+def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=80):
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
     dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/Fes_leg_pedalling'
+
     from sandbox.cycling_torque import main as main_torque
     if not os.path.isfile(dump_path):
         print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
-        biorbd_model_path = 'models/legcyc.bioMod'
         q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
         main_torque(biorbd_model_path, dump_path, q_init)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
 
+
+    model = BiorbdModel(biorbd_model_path)
+    # index = [s.to_string() for s in model.name_dof()].index('knee_r_RotZ')
+    index = model.name_dof.index('knee_r_RotZ')
     q_init = find_nearest(qvec[:, 0:25],
                          value=-((crank_angle / 180) * np.pi),
                          idx_dof=0)
 
-    return q_init
+    return q_init, [float(qvec[index].min()), float(qvec[index].max())]
 
 
 
@@ -261,6 +265,7 @@ def main():
     with_residual_torque = False
     n_shooting = 15
     max_joint_torque = 50
+
     extra_params = {'t_phase': phase_period,
                     'n_pulse_trunc': n_pulse_trunc,
                     # 'pd_offset': pd_offset,
@@ -270,7 +275,13 @@ def main():
                     'friction_coef_mu': friction_coef_mu,
                     'friction_coef_b': friction_coef_b,
                     }
-    q_init = get_initial_position(crank_angle=80)
+
+    # Plotting the A function, because if its results extrapolate beyond realistic values,
+    # it is highly likely to cause problems.
+    q_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=80)
+    from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
+    plot_a_function(biorbd_model_path, muscle_params, knee_range, print_flag=True)
+
     ocp = prepare_ocp(
         biorbd_model_path,
         final_time=phase_period * n_shooting,

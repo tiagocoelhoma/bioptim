@@ -9,6 +9,8 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.prediction import predic
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau1_tau2_km import tau1_tau2_km_ident
 
 
+
+
 def get_initial_position():
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
     dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
@@ -38,21 +40,25 @@ def main():
     # PROBLEM PARAMETERS TO BE SET EACH TIME
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
-        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, 25]],
+        ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, 25]],
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, 25]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]]
         # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
-        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
+        # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
 
-    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = True           # if one wants to have an additional visualization of the torque information
-    plot_graphs = False         # for an additional visualization of the OCP resulting plots
-    show_animate = False        # for an additional visualization of the OCP resulting animation
+    plot_graphs = True         # for an additional visualization of the OCP resulting plots
+    show_animate = True        # for an additional visualization of the OCP resulting animation
 
     qvec = get_initial_position()
+    # from sandbox.cycling_torque import main as get_pd0pdt
+    from FES_leg_param_ident_pdpdt_plot import main as get_pd0pdt
+    a, pd0, pdt = get_pd0pdt(print_flag=print_flag)
+    print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
@@ -114,18 +120,6 @@ def main():
         }
 
         # PROBLEM PARAMETERS
-        # data = load_pickle('opt_sol_results/pickles/pd0ptt.pkl')
-        # print(data[muscle])
-        # a = data[muscle][0]
-        # pd0 = data[muscle][1]
-        # pdt = data[muscle][2]
-
-        # Fitted Parameters:
-        a = 1.05493875e+00
-        pd0 = 1.11878174e-04
-        pdt = 5.69997838e-04
-        print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
-
         fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6}
         fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6} if muscle == 'bflh140_r' or muscle == 'bflh140_l' else fes
         problem_params = {
@@ -143,9 +137,9 @@ def main():
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
         tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
-        a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
+        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 
