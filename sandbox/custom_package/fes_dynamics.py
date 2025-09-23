@@ -52,6 +52,23 @@ def set_muscle_tau2_param(bio_model: BiorbdModel, value: MX):
         bio_model.model.muscle(i).characteristics().setMuscleDingTau2Param(value)
 
 
+def calculate_friction_torque(angular_velocity, mu, B):
+    """
+    Calculate the frictional torque including Coulomb and viscous friction effects.
+    Compatible with CasADi MX/SX types.
+
+    Parameters:
+    - angular_velocity: CasADi MX/SX angular velocity (rad/s)
+    - mu: Coulomb friction coefficient (Nm)
+    - B: Viscous friction coefficient (Nms/rad)
+
+    Returns:
+    - friction_torque: CasADi MX/SX torque (Nm)
+    """
+    coulomb_friction = -mu * casadi.sign(angular_velocity)  # Coulomb friction
+    viscous_friction = -B * angular_velocity                # Viscous friction: linear with speed
+
+    return coulomb_friction + viscous_friction
 
 
 class FESConfigureVariables(ConfigureVariables):
@@ -232,6 +249,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
             bio_model: Str | biorbd.Model,
             friction_coefficients: np.ndarray = None,
             with_residual_torque: Bool = False,
+            with_friction: Bool = False,
             parameters: ParameterList = None,
             parameter_identification: Bool = False,
             external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
@@ -287,7 +305,8 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         f = DynamicsFunctions.get(nlp.states["f"], states)
         # CONTROL VARIABLES
         pwd = DynamicsFunctions.get(nlp.controls["pw"], controls)
-
+        # extra_params
+        idx_crank = extra_params.get('idx_crank')
         # Residual torque
         if "tau" in nlp.controls:
             residual_tau = DynamicsFunctions.get(nlp.controls["tau"], controls)
@@ -301,9 +320,18 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         # Muscle torque
         muscles_tau = residual_tau + self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
         # resistive torque is added to the crank axis only (index 0)
-        muscles_tau[0] = muscles_tau[0] + resistive_torque[0]
+        muscles_tau[idx_crank] = muscles_tau[idx_crank] + resistive_torque[idx_crank]
 
-        # muscles_tau = self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
+        if self.with_friction:
+            friction_coef_b = extra_params.get('friction_coef_b')
+            friction_coef_mu = extra_params.get('friction_coef_mu')
+            friction_tau = calculate_friction_torque(qdot[idx_crank],
+                                                        mu=friction_coef_mu,
+                                                        B=friction_coef_b)
+            friction_torque = MX.zeros(q.shape)
+            friction_torque[idx_crank] = friction_tau
+            muscles_tau = muscles_tau + friction_torque
+            # muscles_tau = self.muscle_joint_torque_from_muscle_forces(f, q, qdot)
         # muscles_tau = muscles_tau + nlp.model.passive_joint_torque(q, qdot) if with_passive_torque else muscles_tau
         # muscles_tau = muscles_tau + nlp.model.ligament_joint_torque(q, qdot) if with_ligament else muscles_tau
         # joints_tau = DynamicsFunctions.get(nlp.controls["tau"], controls) if with_orque else joints_tau
@@ -670,6 +698,7 @@ class FESCyclingDynamics(CustomFesDynamics):
             bio_model: Str | biorbd.Model,
             friction_coefficients: np.ndarray = None,
             with_contact: bool = False,
+            with_friction: bool = False,
             with_residual_torque: bool = False,
             with_resistive_torque: bool = False,
             parameters: ParameterList = None,
@@ -690,6 +719,7 @@ class FESCyclingDynamics(CustomFesDynamics):
             **extra_params,
         )
         self.with_resistive_torque = with_resistive_torque
+        self.with_friction = with_friction
 
     def dynamics(
             self,

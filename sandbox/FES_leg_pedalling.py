@@ -60,6 +60,7 @@ def prepare_ocp(
     model=FESCyclingDynamics(biorbd_model_path,
                              with_contact=True,
                              with_residual_torque=with_torque,
+                             with_friction=with_friction,
                              **extra_params)
     # model=CustomFesDynamics(biorbd_model_path,
     #                          with_contact=True,
@@ -296,12 +297,13 @@ def main():
     friction_coef_b=0.78
     friction_coef_mu=0.05
     target_velocity_rpm=41.92
-    target_power=25.0
+    target_power=10.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)
 
     with_residual_torque = False
+    with_friction = True
     n_shooting = 15
     max_joint_torque = 50
 
@@ -329,6 +331,7 @@ def main():
         final_time=phase_period * n_shooting,
         max_joint_torque=max_joint_torque,
         with_torque=with_residual_torque,
+        with_friction=with_friction,
         n_shooting=n_shooting,
         q_init=q_init,
         target_power=target_power,
