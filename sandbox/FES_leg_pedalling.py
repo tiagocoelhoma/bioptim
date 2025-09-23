@@ -27,6 +27,7 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler im
 
 # import the custom model
 from sandbox.custom_package.fes_dynamics import FESCyclingDynamics, CustomFesDynamics
+from sandbox.custom_package.fes_objectives import FesObjective
 
 
 def prepare_ocp(
@@ -107,13 +108,50 @@ def prepare_ocp(
     #         weight=1e3,
     #     )
 
+    if 'rect_fem_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('rect_fem_r'),
+            mus_num_2=muscles.index('rect_fem_l'),
+            quadratic=True,
+            weight=1e2,
+        )
+    if 'vasmed_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('vasmed_r'),
+            mus_num_2=muscles.index('vasmed_l'),
+            quadratic=True,
+            weight=1e2,
+        )
+    if 'bflh140_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('bflh140_r'),
+            mus_num_2=muscles.index('bflh140_l'),
+            quadratic=True,
+            weight=1e2,
+        )
+    # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
-        ObjectiveFcn.Mayer.TRACK_STATE,
+        ObjectiveFcn.Lagrange.TRACK_STATE,
+        # ObjectiveFcn.Mayer.TRACK_STATE,
+        # node=Node.ALL,
         key="qdot",
         index=idx_crank,
-        node=Node.ALL,
-        target=target_velocity,
-        # target= dq_init[0, kni_pos_value_at],
+        target= target_velocity,
         weight=1e3,
     )
 
@@ -279,8 +317,11 @@ def main():
     # Plotting the A function, because if its results extrapolate beyond realistic values,
     # it is highly likely to cause problems.
     q_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=80)
-    from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
-    plot_a_function(biorbd_model_path, muscle_params, knee_range, print_flag=True)
+
+    print_flag = False
+    if print_flag:
+        from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
+        plot_a_function(biorbd_model_path, muscle_params, knee_range)
 
     ocp = prepare_ocp(
         biorbd_model_path,

@@ -33,7 +33,7 @@ def poly_squared(x, coeffs):
     return poly_val**2
     # return np.polyval(coeffs, x)**2
 
-def main(biorbd_model_path, muscle_params, knee_range=[0.8, 2.3], print_flag=False):
+def main(biorbd_model_path, muscle_params, knee_range=[0.8, 2.3]):
     # Plot
     model = BiorbdModel(biorbd_model_path)
     filtered_params = {m: muscle_params[m] for m in model.muscle_names if m in muscle_params}
