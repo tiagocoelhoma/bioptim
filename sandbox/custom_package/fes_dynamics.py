@@ -467,7 +467,6 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
                                   defects=None)
 
 
-
 class ParamIdentDynamics(CustomFesDynamics):
     """
     This class is used to create a model actuated through muscle activation.
@@ -687,7 +686,6 @@ class ParamPredictionDynamics(CustomFesDynamics):
                                   defects=None)
 
 
-
 class FESCyclingDynamics(CustomFesDynamics):
     """
     This class is used to create a model actuated through muscle activation.
@@ -805,3 +803,123 @@ class FESCyclingDynamics(CustomFesDynamics):
                                                casadi.vertcat(*f_dot_list),
                                                casadi.vertcat(*alpha_dot_list)),
                                   defects=None)
+
+
+class CustomTorqueDynamics(BiorbdModel, TorqueDynamics):
+    """
+    """
+
+    def __init__(
+            self,
+            bio_model: Str | biorbd.Model,
+            friction_coefficients: np.ndarray = None,
+            with_residual_torque: Bool = False,
+            with_friction: Bool = False,
+            parameters: ParameterList = None,
+            parameter_identification: Bool = False,
+            external_force_set: ExternalForceSetTimeSeries | ExternalForceSetVariables = None,
+            contact_types: list[ContactType] | tuple[ContactType] = (),
+            fatigue: FatigueList = None,
+            **extra_params,
+    ):
+        BiorbdModel.__init__(self, bio_model, friction_coefficients, parameters, external_force_set, contact_types)
+        TorqueDynamics.__init__(self, fatigue)
+
+        self.state_configuration = [States.Q, States.QDOT]
+        self.control_configuration = [Controls.TAU]
+
+        self.algebraic_configuration = []
+        self.functions = []
+        self.with_residual_torque = with_residual_torque
+        self.extra_params = extra_params
+
+    def get_rigid_contact_forces(
+            self,
+            time,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            nlp,
+    ):
+        q, qdot, tau = self.get_basic_variables(
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+        )
+
+        external_forces = nlp.get_external_forces(
+            "external_forces", states, controls, algebraic_states, numerical_timeseries
+        )
+        return nlp.model.rigid_contact_forces()(q, qdot, tau, external_forces, nlp.parameters.cx)
+
+    def get_basic_variables(
+            self,
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            **extra_params,
+    ):
+
+        # Get variables from the right place
+        q = DynamicsFunctions.get(nlp.states["q"], states)
+        qdot = DynamicsFunctions.get(nlp.states["qdot"], states)
+        # CONTROL VARIABLES
+        tau = DynamicsFunctions.get(nlp.controls["tau"], controls)
+        # extra_params
+        idx_crank = self.extra_params.get('idx_crank')
+        friction_coef_b = self.extra_params.get('friction_coef_b')
+        friction_coef_mu = self.extra_params.get('friction_coef_mu')
+        friction_tau = calculate_friction_torque(qdot[idx_crank],
+                                                    mu=friction_coef_mu,
+                                                    B=friction_coef_b)
+        friction_torque = MX.zeros(q.shape)
+        friction_torque[idx_crank] = friction_tau
+        tau = tau + friction_torque
+
+        return q, qdot, tau
+
+
+
+    def dynamics(
+            self,
+            time,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            nlp,
+            with_contact: bool = False,
+            with_torque: bool = False,
+            with_friction: bool = False,
+            fes_driven_task_flag: bool = False,
+            prediction_flag: bool = False,
+            only_parameter_a: bool = False,
+            identification_flag: bool = False,
+            **extra_params,
+    ):
+
+        # # Get states indices
+        # q_indices, qdot_indices = self.get_q_qdot_indices(nlp)
+
+        # Get variables
+        q, qdot, tau = self.get_basic_variables(
+            nlp,
+            states,
+            controls,
+            parameters,
+            algebraic_states,
+            numerical_timeseries,
+            **extra_params,
+        )
+
+        ddq = nlp.model.forward_dynamics(with_contact=with_contact)(q, qdot, tau, [], [])
+        return DynamicsEvaluation(dxdt=vertcat(qdot, ddq), defects=None)

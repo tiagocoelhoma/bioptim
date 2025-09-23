@@ -22,6 +22,7 @@ from bioptim import (
     PhaseDynamics,
     DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType,
 )
+from sandbox.FES_leg_pedalling_calculate_power import plot_power, calculate_power
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params
 
@@ -349,6 +350,7 @@ def main():
     solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
     solver.set_maximum_iterations(1000)
     sol = ocp.solve(solver=solver)
+
     sol.graphs()
     # --- Show results --- #
     # sol.graphs(show_bounds=True)
@@ -356,7 +358,51 @@ def main():
 
     # --- Animation --- #
     # not implemented yet
-    sol.animate()
+    # sol.animate()
+
+    # save data
+    states = sol.stepwise_states()
+    controls = sol.stepwise_controls()
+    q_sol, qdot_sol, cn_sol, f_sol = states["q"], states["qdot"], states["cn"], states["f"]
+    pw_sol = controls["pw"]
+    tau_joints = controls["tau"] if "tau" in controls else None
+    tau_res_sol = controls["resistive_torque"] if "resistive_torque" in controls else None
+    data = {
+        "q": q_sol, "qdot": qdot_sol, "cn": cn_sol, "f": f_sol,
+        "pw": pw_sol, "tau_resistive": tau_res_sol, "tau_joints": tau_joints,
+        "time": sol.stepwise_time(), "n_iterations": sol.iterations, "final_time": ocp.phase_time,
+        "solver_time": sol.solver_time_to_optimize, "real_time": sol.real_time_to_optimize,
+        "n_node": n_shooting, "freq": stim_freq, "n_trunc": n_pulse_trunc,
+        "target_vel": target_velocity_rpm, 'target_pwr': target_power,
+    }
+
+    folder_path = 'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
+    filename = f'friction_{round(phase_period * n_shooting, 2)}s_{n_shooting}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}'
+    with open(f'{folder_path}' + filename + '.pkl', "wb") as file:
+        del sol.ocp
+        pickle.dump(data, file)
+
+    # calculate power with a torque driven example (inverse dynamics with contact points is not implemented yet)
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
+    print(f'Calculating power {dump_path}{filename}')
+    to_be_calculated = True
+    import biorbd as brbd
+    if to_be_calculated:
+        calculate_power(dump_path,
+                        biorbd_model_path,
+                        # 'models/leg_model_cyclic_muscle_inversed_root_3_gravity_0.bioMod',
+                        filename,
+                        stim_freq=35,
+                        friction_coef_mu=friction_coef_mu,
+                        friction_coef_b=friction_coef_b,
+                        print_res=True,
+                        set_gravity_to_zero=True)
+    plot_power(dump_path,
+               brbd.Model(biorbd_model_path),
+               filename,
+               friction_coef_mu=friction_coef_mu,
+               friction_coef_b=friction_coef_b,
+               set_gravity_to_zero=False)     # plot power
 
 
 if __name__ == "__main__":
