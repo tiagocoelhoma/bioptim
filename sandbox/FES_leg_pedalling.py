@@ -219,6 +219,7 @@ def prepare_ocp(
         x_init=x_init,
         u_init=u_init,
         objective_functions=objective_functions,
+        u_scaling=u_scaling,
         use_sx=False,
         n_threads=n_threads,
     )
