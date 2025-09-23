@@ -249,6 +249,9 @@ def main(print_flag=True):
                                    bounds=([0, 0, 0], [1.5e3, 150e-3, 500e-3])  # Prevents unrealistic negative values
                                    )
 
+    a, pd0, pdt = params[0], params[1], params[2]
+    a_, pd0_, pdt_ = a_ / 6, pd0_ / 6, pdt_ / 6
+    avr_params = [a_, pd0_, pdt_]
 
     if print_flag:
         # plt.scatter(pw, normalized_torque)
@@ -260,9 +263,7 @@ def main(print_flag=True):
         colors = plt.cm.tab10(range(len(muscles)))  # or use custom: ['red', 'blue', 'green', ...]
 
         # muscle_to_color = {mus: col for mus, col in zip(muscles, colors)}
-        a, pd0, pdt = params[0], params[1], params[2]
-        a_, pd0_, pdt_ = a_/6, pd0_/6, pdt_/6
-        avr_params = [a_, pd0_, pdt_]
+
 
         pw_values_filtered = np.linspace(min(pw), max(pw), 1000)
 

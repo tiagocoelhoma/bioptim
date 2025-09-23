@@ -15,7 +15,7 @@ def get_coefficients_sqrd(config, a_scale_values, angles, print_flag=True):
     x_data = angles
 
     # Degree of polynomial to fit
-    degree = 4
+    degree = 3
 
     # Fit polynomial to sqrt of data
     sqrt_y = np.sqrt(a_scale_values)
