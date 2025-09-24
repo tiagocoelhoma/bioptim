@@ -20,7 +20,7 @@ from bioptim import (
     Solver,
     DynamicsOptionsList,
     PhaseDynamics,
-    DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType,
+    DynamicsOptions, ConstraintList, ObjectiveList, VariableScalingList, Node, ContactType, InterpolationType,
 )
 from sandbox.FES_leg_pedalling_calculate_power import plot_power, calculate_power
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol
@@ -36,6 +36,7 @@ def prepare_ocp(
     final_time: float,
     n_shooting: int,
     q_init: np.array,
+    dq_init: np.array,
     with_torque: bool = False,
     with_friction: bool = False,
     max_joint_torque: float = 0.0,
@@ -158,14 +159,11 @@ def prepare_ocp(
     )
 
     x_bounds = BoundsList()
-    # x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
+    x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
     # x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
-    # x_bounds["qdot"].min[:, [0]] = dq_init[:, kni_pos_value_at, np.newaxis]  # so the contact points would be still
-    # x_bounds["qdot"].max[:, [0]] = dq_init[:, kni_pos_value_at, np.newaxis]  # so the contact points would be still
+    # x_bounds["qdot"].min[:, [0]] = dq_init
+    # x_bounds["qdot"].max[:, [0]] = dq_init
     # setting the initial position for the legs and gear (starting from a position different from 0 or pi)
-    # x_bounds["q"].min[:, [0]] = q_init[:, kni_pos_value_at, np.newaxis]
-    # x_bounds["q"].max[:, [0]] = q_init[:, kni_pos_value_at, np.newaxis]
-    x_bounds["q"] = model.bounds_from_ranges("q")
     x_bounds["q"].min[:, [0]] = q_init
     x_bounds["q"].max[:, [0]] = q_init
     x_bounds["qdot"] = model.bounds_from_ranges("qdot")
@@ -230,7 +228,7 @@ def find_nearest(q_pos, value, idx_dof=0):
     array = np.asarray(q_pos[idx_dof,:] % (-2 * np.pi))
     array = np.asarray(q_pos[idx_dof,:] % (2 * np.pi)) if q_pos[idx_dof,0] > 0 else array
     idx = (np.abs(array - value)).argmin()
-    return q_pos[:,idx, np.newaxis]
+    return idx
 
 
 def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=80):
@@ -244,16 +242,16 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
         main_torque(biorbd_model_path, dump_path, q_init)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
-
+    dqvec = np.array(unpack_sol(sol_dict["qdot"])).T
 
     model = BiorbdModel(biorbd_model_path)
     # index = [s.to_string() for s in model.name_dof()].index('knee_r_RotZ')
     index = model.name_dof.index('knee_r_RotZ')
-    q_init = find_nearest(qvec[:, 0:25],
+    idx = find_nearest(qvec[:, 0:25],
                          value=-((crank_angle / 180) * np.pi),
                          idx_dof=0)
 
-    return q_init, [float(qvec[index].min()), float(qvec[index].max())]
+    return qvec[:, idx, np.newaxis], dqvec[:, idx, np.newaxis], [float(qvec[index].min()), float(qvec[index].max())]
 
 
 
@@ -296,16 +294,16 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.05
+    friction_coef_mu=0.02
     target_velocity_rpm=41.92
-    target_power=10.0
+    target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)
 
-    with_residual_torque = False
+    with_residual_torque = True
     with_friction = True
-    n_shooting = 15
+    n_shooting = 16
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
@@ -320,7 +318,7 @@ def main():
 
     # Plotting the A function, because if its results extrapolate beyond realistic values,
     # it is highly likely to cause problems.
-    q_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=80)
+    q_init, dq_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=80)
 
     print_flag = False
     if print_flag:
@@ -335,6 +333,7 @@ def main():
         with_friction=with_friction,
         n_shooting=n_shooting,
         q_init=q_init,
+        dq_init=dq_init,
         target_power=target_power,
         target_velocity=target_v,
         **extra_params,
