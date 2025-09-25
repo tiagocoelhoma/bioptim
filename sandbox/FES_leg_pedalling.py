@@ -42,9 +42,9 @@ def prepare_ocp(
     max_joint_torque: float = 0.0,
     target_power: int = 0,
     target_velocity: float = 0,
-    ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
+    ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
-    n_threads: int = 12,
+    n_threads: int = 14,
     expand_dynamics: bool = True,
     **extra_params,
 ) -> OptimalControlProgram:
@@ -121,7 +121,7 @@ def prepare_ocp(
             mus_num_1=muscles.index('rect_fem_r'),
             mus_num_2=muscles.index('rect_fem_l'),
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
@@ -133,7 +133,7 @@ def prepare_ocp(
             mus_num_1=muscles.index('vasmed_r'),
             mus_num_2=muscles.index('vasmed_l'),
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
@@ -145,7 +145,7 @@ def prepare_ocp(
             mus_num_1=muscles.index('bflh140_r'),
             mus_num_2=muscles.index('bflh140_l'),
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -155,22 +155,19 @@ def prepare_ocp(
         key="qdot",
         index=idx_crank,
         target= target_velocity,
-        weight=1e2,
+        weight=1e3,
     )
 
     x_bounds = BoundsList()
     x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
-    # x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
-    # x_bounds["qdot"].min[:, [0]] = dq_init
-    # x_bounds["qdot"].max[:, [0]] = dq_init
-    # setting the initial position for the legs and gear (starting from a position different from 0 or pi)
     x_bounds["q"].min[:, [0]] = q_init
     x_bounds["q"].max[:, [0]] = q_init
-    x_bounds["qdot"] = model.bounds_from_ranges("qdot")
+    x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
+    # x_bounds["qdot"].min[:, [0]] = dq_init
+    # x_bounds["qdot"].max[:, [0]] = dq_init
     x_bounds["qdot"].max[0, :] = [0]  # gear moving backwards only (negative velocity)
     x_bounds["qdot"].min[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
     x_bounds["qdot"].max[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
-
     x_bounds.add("cn",
                  min_bound=[cn_min] * model.nb_muscles,
                  max_bound=[cn_max] * model.nb_muscles)
@@ -256,13 +253,13 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
 
 
 # PROBLEM PARAMETERS
-f_min, f_max, f_init = 0, 2000, 0
+f_min, f_max, f_init = 0, 5000, 0
 cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 # fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6  # todo: verificar scala?
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 # pd_offset = fes_min
-stim_freq = 35  # stimulation frequency in Hertz
+stim_freq = 25  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
 # pd0 = 1.11878174e-04
@@ -303,7 +300,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 16
+    n_shooting = 75
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
@@ -318,7 +315,7 @@ def main():
 
     # Plotting the A function, because if its results extrapolate beyond realistic values,
     # it is highly likely to cause problems.
-    q_init, dq_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=80)
+    q_init, dq_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=50)
 
     print_flag = False
     if print_flag:
@@ -347,7 +344,7 @@ def main():
 
     # --- Solve the ocp --- #
     solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
-    solver.set_maximum_iterations(1000)
+    solver.set_maximum_iterations(5000)
     sol = ocp.solve(solver=solver)
 
     sol.graphs()
