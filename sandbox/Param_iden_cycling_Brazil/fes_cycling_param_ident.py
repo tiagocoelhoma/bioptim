@@ -16,7 +16,7 @@ def get_initial_position():
     dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
     from sandbox.cycling_torque import main as main_torque
     if not os.path.isfile(dump_path):
-        print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
+        print(f"Initializing kinematics. If you have changed the biomechanical model, remember to update q_init !")
         biorbd_model_path = 'models/legcyc.bioMod'
         q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
         main_torque(biorbd_model_path, dump_path, q_init)
@@ -41,16 +41,16 @@ def main():
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
         ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, -1]],
-        ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
+        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]],
-        ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
-        ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
-        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
+        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
+        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
+        # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
 
-    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
-    print_flag = False           # if one wants to have an additional visualization of the torque information
+    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    print_flag = True           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
     show_animate = False        # for an additional visualization of the OCP resulting animation
 

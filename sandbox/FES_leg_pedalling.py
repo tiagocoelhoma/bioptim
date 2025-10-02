@@ -42,7 +42,7 @@ def prepare_ocp(
     max_joint_torque: float = 0.0,
     target_power: int = 0,
     target_velocity: float = 0,
-    ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
+    ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
     n_threads: int = 14,
     expand_dynamics: bool = True,

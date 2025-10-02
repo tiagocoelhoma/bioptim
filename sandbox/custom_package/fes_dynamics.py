@@ -276,7 +276,7 @@ class CustomFesDynamics(BiorbdModel, TorqueDynamics):
         self.functions = []
         self.with_residual_torque = with_residual_torque
         self.extra_params = extra_params
-
+        self.with_friction = with_friction
 
     # def serialize(self) -> tuple[Callable, dict]:
     #     return CustomFesDynamics, dict(

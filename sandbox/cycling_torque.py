@@ -117,7 +117,7 @@ def prepare_ocp(
 
 def main(
         biorbd_model_path: str = "models/legcyc.bioMod",
-        dump_path: str = "Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling",
+        dump_path: str = "opt_sol_results/kinematics/cycling",
         q_init: np.array = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]),
 ):
     """
@@ -132,10 +132,10 @@ def main(
     )
 
     # --- Solve the program --- #
-    sol = ocp.solve(Solver.IPOPT(show_online_optim=True))
+    sol = ocp.solve(Solver.IPOPT(show_online_optim=False))
 
     # --- Show results --- #
-    sol.animate()
+    # sol.animate()
     print("Initialization failure" if sol.status else "Initialization success")
 
     states = sol.stepwise_states()
