@@ -105,7 +105,7 @@ class FesObjective():
 
 
     def custom_func_minimize_cocontraction(controller: PenaltyController, mus_num_1: int, mus_num_2: int) -> MX:
-        activations = controller.controls["pw"].cx_start
+        activations = controller.controls["pw"].cx
         return activations[mus_num_1] * activations[mus_num_2]
 
 

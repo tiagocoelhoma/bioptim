@@ -95,11 +95,11 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e-1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=0.5)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
     #     objective_functions.add(
     #         FesObjective.custom_func_maximize_crank_power,
@@ -145,7 +145,7 @@ def prepare_ocp(
     #         mus_num_1=muscles.index('bflh140_r'),
     #         mus_num_2=muscles.index('bflh140_l'),
     #         quadratic=True,
-    #         weight=1e4,
+    #         weight=1e2,
     #     )
     # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -259,7 +259,7 @@ tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 # fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6  # todo: verificar scala?
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 # pd_offset = fes_min
-stim_freq = 25  # stimulation frequency in Hertz
+stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
 # pd0 = 1.11878174e-04
