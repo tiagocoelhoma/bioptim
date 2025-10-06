@@ -311,7 +311,7 @@ def main(print_flag=True):
         plt.xlabel("Pulse duration (s)")
         plt.ylabel("Normalized Max Torque")
         plt.legend(loc="upper left", fontsize="8", frameon=False)
-        plt.savefig('opt_sol_results/images/pd0pdt.pdf', format='pdf', dpi=1600, bbox_inches='tight')
+        plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/pd0pdt.pdf', format='pdf', dpi=1600, bbox_inches='tight')
         plt.grid(False)
 
         # Optional R^2

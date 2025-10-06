@@ -3,32 +3,10 @@ import pickle
 import numpy as np
 import biorbd as brbd
 import pandas as pd
-from bioptim.dynamics.configure_problem import _check_contacts_in_biorbd_model, ConfigureProblem
-from casadi import MX, SX, horzcat, casadi
-
-from bioptim.limits.path_conditions import InitialGuessList
-from bioptim import (
-    BiorbdModel,
-    Dynamics,
-    DynamicsFcn,
-    ObjectiveFcn,
-    BoundsList,
-    Solver,
-    Node,
-    Axis,
-    PhaseDynamics,
-    ObjectiveList,
-    OptimalControlProgram,
-    OdeSolverBase,
-    OdeSolver, PlotType, NonLinearProgram, DynamicsFunctions, DynamicsEvaluation,
-)
 from matplotlib import pyplot as plt
 
-from custom_package.fes_configure_probem import FesDynamicsFcn
-from custom_package.fes_dynamics import calculate_friction_torque
-from custom_package.fes_plotting import fes_plot_power, organize_data, unpack_sol, get_data
-
-
+from sandbox.custom_package.fes_dynamics import calculate_friction_torque
+from sandbox.custom_package.fes_plotting import get_data, organize_data
 
 
 def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gravity_to_zero):
@@ -143,6 +121,8 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
     pw_stretched = np.repeat(pw_squeezed, repeat_factor, axis=0)
     pw_stretched = pw_stretched[:q_size, :]
 
+
+
     radial_offsets = np.linspace(10.5, 20.5, 8)
     # fig, axes = plt.subplots(1, 3, subplot_kw={'polar': True}, figsize=(16, 6))
     q_radians = q_data_aux[0] % (2 * np.pi) * -1
@@ -176,7 +156,7 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
     # plt.legend(loc='upper left', bbox_to_anchor=(0, 0), fontsize='small', frameon=True, ncol=1)
     axes.legend(loc='lower center', fontsize='medium', frameon=False, ncol=6, bbox_to_anchor=(0.50, -0.15))
     # axes.legend(loc='center', fontsize='medium', frameon=False, ncol=1)
-    plt.savefig('images/stim_pattern_only.pdf', format='pdf', dpi=300, bbox_inches='tight')
+    plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/stim_pattern_only.pdf', format='pdf', dpi=300, bbox_inches='tight')
     plt.show()
 
     q_radians = q_data_aux[0] * -1
@@ -229,14 +209,14 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
     plt.show()
 
     # print mean values
-    mean_pwr = np.mean(pwr_radians)
+    mean_pwr = np.mean(pwr_radians);
     std_pwr = np.std(pwr_radians)
     print(f'Mean power: {mean_pwr:.2f} ± {std_pwr:.2f} W')
 
 
-def test():
+def plot_data():
     # 1. Carregar o arquivo .txt
-    df = pd.read_csv('../data_exp/rotor_bike/20250703_151705_pedalling_2.txt', sep='\t')  # ajuste o caminho do arquivo aqui
+    df = pd.read_csv('Param_iden_cycling_Brazil/data_exp/rotor_bike/20250703_151705_pedalling_2.txt', sep='\t')  # ajuste o caminho do arquivo aqui
 
     # Aplicar média móvel com janela de 3
     df['Power_smoothed'] = df['Power(W)'].rolling(window=3, center=True).mean()
@@ -275,13 +255,14 @@ def test():
 
 if __name__ == "__main__":
 
-    dump_path = f'../opt_sol_results/fes_leg_pedalling/'
-    model_path = "../../models/leg_model_cyclic_muscle_inversed_root_3.bioMod"
+    print('test')
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
+    model_path = "models/legcyc.bioMod"
     # file = 'friction_3.05s_105n_41.92rpm_20.0W_fric_0.2_1.0378'
     # filename = f'friction_{round(duration, 2)}s_{n_nodes}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}_opt_crank'
     # file = 'friction_2.09s_72n_41.92rpm_25.0W_fric_0.2_1.2973' # _backing_up_4th_order
 
-    file = 'friction_2.18s_75n_41.92rpm_25.0W_fric_0.05_1.2973'  # only quadriceps
+    file = 'friction_2.18s_75n_41.92rpm_20.0W_fric_0.01_1.0378'  # only quadriceps
 
 
 
@@ -289,5 +270,5 @@ if __name__ == "__main__":
     friction_coef_b = float(file[-6:])
     model = brbd.Model(model_path)
 
-    # test()
+    # plot_data()
     plot_power(dump_path, model, file, friction_coef_mu, friction_coef_b, set_gravity_to_zero=False) # plot power
