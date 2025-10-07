@@ -97,7 +97,7 @@ def prepare_ocp(
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=0.005)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=0.005)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
@@ -135,18 +135,19 @@ def prepare_ocp(
     #         quadratic=True,
     #         weight=1e2,
     #     )
-    # if 'bflh140_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('bflh140_r'),
-    #         mus_num_2=muscles.index('bflh140_l'),
-    #         quadratic=True,
-    #         weight=1e2,
-    #     )
+    if 'bflh140_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('bflh140_r'),
+            mus_num_2=muscles.index('bflh140_l'),
+            pw_offset=fes_min,
+            quadratic=True,
+            weight=1e-2,
+        )
     # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
         ObjectiveFcn.Lagrange.TRACK_STATE,
@@ -291,7 +292,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.01
+    friction_coef_mu=0.02
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
