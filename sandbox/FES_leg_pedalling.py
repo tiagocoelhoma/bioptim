@@ -44,6 +44,7 @@ def prepare_ocp(
     target_power: int = 0,
     fes_min: float = 0.0,
     fes_max: float = 0.0,
+    idx: int =0,
     target_velocity: float = 0,
     ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
@@ -99,7 +100,7 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
@@ -166,14 +167,20 @@ def prepare_ocp(
 
     x_bounds = BoundsList()
     x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
-    x_bounds["q"].min[:, [0]] = q_init
-    x_bounds["q"].max[:, [0]] = q_init
+    # x_bounds["q"].min[:, [0]] = q_init
+    # x_bounds["q"].max[:, [0]] = q_init
     x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
     # x_bounds["qdot"].min[:, [0]] = dq_init
     # x_bounds["qdot"].max[:, [0]] = dq_init
-    x_bounds["qdot"].max[0, :] = [0]  # gear moving backwards only (negative velocity)
-    x_bounds["qdot"].min[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
-    x_bounds["qdot"].max[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
+    x_bounds["qdot"].min[:, [0]] = dq_init[:, idx, np.newaxis]  # so the contact points would be still
+    x_bounds["qdot"].max[:, [0]] = dq_init[:, idx, np.newaxis]  # so the contact points would be still
+    # setting the initial position for the legs and gear (starting from a position different from 0 or pi)
+    x_bounds["q"].min[:, [0]] = q_init[:, idx, np.newaxis]
+    x_bounds["q"].max[:, [0]] = q_init[:, idx, np.newaxis]
+
+    # x_bounds["qdot"].max[0, :] = [0]  # gear moving backwards only (negative velocity)
+    # x_bounds["qdot"].min[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
+    # x_bounds["qdot"].max[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
     x_bounds.add("cn",
                  min_bound=[cn_min] * model.nb_muscles,
                  max_bound=[cn_max] * model.nb_muscles)
@@ -203,8 +210,8 @@ def prepare_ocp(
                  min_bound=[fes_min] * model.nb_muscles,
                  max_bound=[fes_max] * model.nb_muscles)
     x_init = InitialGuessList()
-    # x_init.add('q', q_init, InterpolationType.EACH_FRAME)
-    # x_init.add('qdot', dq_init, InterpolationType.EACH_FRAME)
+    x_init.add('q', q_init[:, :n_shooting+1], InterpolationType.EACH_FRAME)
+    x_init.add('qdot', dq_init[:, :n_shooting+1], InterpolationType.EACH_FRAME)
     for m in range(model.nb_muscles):
         x_init[f"alpha_{m}"] = [0] * n_pulse_trunc
 
@@ -254,7 +261,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
                          value=-((crank_angle / 180) * np.pi),
                          idx_dof=0)
 
-    return qvec[:, idx, np.newaxis], dqvec[:, idx, np.newaxis], [float(qvec[index].min()), float(qvec[index].max())]
+    return qvec, dqvec, [float(qvec[index].min()), float(qvec[index].max())], idx
 
 
 
@@ -295,7 +302,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.015
+    friction_coef_mu=0.02
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
@@ -319,7 +326,7 @@ def main():
 
     # Plotting the A function, because if its results extrapolate beyond realistic values,
     # it is highly likely to cause problems.
-    q_init, dq_init, knee_range = get_initial_position(biorbd_model_path, crank_angle=50)
+    q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path, crank_angle=50)
 
     print_flag = False
     if print_flag:
@@ -339,6 +346,7 @@ def main():
         target_velocity=target_v,
         fes_min=fes_min,
         fes_max=fes_max,
+        idx=idx,
         **extra_params,
     )
 
