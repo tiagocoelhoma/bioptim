@@ -251,7 +251,7 @@ def main(print_flag=True):
 
     a, pd0, pdt = params[0], params[1], params[2]
     a_, pd0_, pdt_ = a_ / 6, pd0_ / 6, pdt_ / 6
-    avr_params = [a_, pd0_, pdt_]
+    avr_params = [round(a_, 8), round(pd0_, 8), round(pdt_, 8)]
 
     if print_flag:
         # plt.scatter(pw, normalized_torque)

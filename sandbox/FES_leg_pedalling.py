@@ -25,6 +25,7 @@ from bioptim import (
 from sandbox.FES_leg_pedalling_calculate_power import plot_power, calculate_power
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.com_functions import unpack_sol
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params
+from sandbox.Param_iden_cycling_Brazil.FES_leg_param_ident_pdpdt_plot import main as get_pd0pdt
 
 # import the custom model
 from sandbox.custom_package.fes_dynamics import FESCyclingDynamics, CustomFesDynamics
@@ -41,6 +42,8 @@ def prepare_ocp(
     with_friction: bool = False,
     max_joint_torque: float = 0.0,
     target_power: int = 0,
+    fes_min: float = 0.0,
+    fes_max: float = 0.0,
     target_velocity: float = 0,
     ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
     phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
@@ -96,8 +99,8 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=0.005)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
@@ -111,30 +114,32 @@ def prepare_ocp(
     #         weight=1e3,
     #     )
 
-    # if 'rect_fem_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('rect_fem_r'),
-    #         mus_num_2=muscles.index('rect_fem_l'),
-    #         quadratic=True,
-    #         weight=1e2,
-    #     )
-    # if 'vasmed_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('vasmed_r'),
-    #         mus_num_2=muscles.index('vasmed_l'),
-    #         quadratic=True,
-    #         weight=1e2,
-    #     )
+    if 'rect_fem_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('rect_fem_r'),
+            mus_num_2=muscles.index('rect_fem_l'),
+            pw_offset=fes_min,
+            quadratic=True,
+            weight=1e2,
+        )
+    if 'vasmed_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('vasmed_r'),
+            mus_num_2=muscles.index('vasmed_l'),
+            pw_offset=fes_min,
+            quadratic=True,
+            weight=1e2,
+        )
     if 'bflh140_r' in muscles:
         objective_functions.add(
             FesObjective.custom_func_minimize_cocontraction,
@@ -146,7 +151,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e-2,
+            weight=1e2,
         )
     # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -263,12 +268,6 @@ alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 5
 phase_period = round(1 / stim_freq, 3)
-# pd0 = 1.11878174e-04
-# pdt = 5.69997838e-04
-
-pd0 = 0.0001684
-pdt = 0.0002979
-fes_min, fes_max, fes_init = pd0, 1600e-6, pd0  # todo: verificar scala?
 
 
 def main():
@@ -282,6 +281,10 @@ def main():
     filename = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
     muscle_params = read_params(biorbd_model_path, filename)
 
+    a, pd0, pdt = get_pd0pdt(print_flag=False)
+    print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
+    fes_min, fes_max, fes_init = pd0, 1600e-6, pd0  # todo: verificar scala?
+
     for m, muscle_name in enumerate(muscle_params):
         vec = muscle_params[muscle_name][0]
         if len(vec) < 6:
@@ -292,7 +295,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.02
+    friction_coef_mu=0.015
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
@@ -301,7 +304,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 75
+    n_shooting = 35
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
@@ -334,6 +337,8 @@ def main():
         dq_init=dq_init,
         target_power=target_power,
         target_velocity=target_v,
+        fes_min=fes_min,
+        fes_max=fes_max,
         **extra_params,
     )
 
