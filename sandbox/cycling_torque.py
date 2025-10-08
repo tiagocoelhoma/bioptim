@@ -125,8 +125,8 @@ def main(
     """
     ocp = prepare_ocp(
         biorbd_model_path=biorbd_model_path,
-        n_shooting=70,
-        final_time=1.5,
+        n_shooting=140,
+        final_time=2.5,
         q_init=q_init,
         max_joint_torque=50,
     )
