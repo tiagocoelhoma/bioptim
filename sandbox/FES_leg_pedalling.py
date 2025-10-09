@@ -156,9 +156,9 @@ def prepare_ocp(
         )
     # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
-        ObjectiveFcn.Lagrange.TRACK_STATE,
-        # ObjectiveFcn.Mayer.TRACK_STATE,
-        # node=Node.ALL,
+        # ObjectiveFcn.Lagrange.TRACK_STATE,
+        ObjectiveFcn.Mayer.TRACK_STATE,
+        node=Node.ALL,
         key="qdot",
         index=idx_crank,
         target= target_velocity,
