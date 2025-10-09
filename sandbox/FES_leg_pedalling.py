@@ -100,8 +100,8 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e3)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e4)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     if with_friction:
@@ -112,7 +112,7 @@ def prepare_ocp(
             index=idx_crank,
             target=target_power,   # should be negative here
             quadratic=True,
-            weight=1e3,
+            weight=1e2,
             **extra_params,
         )
 
@@ -168,20 +168,12 @@ def prepare_ocp(
 
     x_bounds = BoundsList()
     x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
-    # x_bounds["q"].min[:, [0]] = q_init
-    # x_bounds["q"].max[:, [0]] = q_init
     x_bounds.add("qdot", bounds=model.bounds_from_ranges("qdot"))
-    # x_bounds["qdot"].min[:, [0]] = dq_init
-    # x_bounds["qdot"].max[:, [0]] = dq_init
     x_bounds["qdot"].min[:, [0]] = dq_init[:, idx, np.newaxis]  # so the contact points would be still
     x_bounds["qdot"].max[:, [0]] = dq_init[:, idx, np.newaxis]  # so the contact points would be still
     # setting the initial position for the legs and gear (starting from a position different from 0 or pi)
     x_bounds["q"].min[:, [0]] = q_init[:, idx, np.newaxis]
     x_bounds["q"].max[:, [0]] = q_init[:, idx, np.newaxis]
-
-    # x_bounds["qdot"].max[0, :] = [0]  # gear moving backwards only (negative velocity)
-    # x_bounds["qdot"].min[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
-    # x_bounds["qdot"].max[:, [0]] = 0  # Initial velocity = 0 so the contact points would be still
     x_bounds.add("cn",
                  min_bound=[cn_min] * model.nb_muscles,
                  max_bound=[cn_max] * model.nb_muscles)
