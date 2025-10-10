@@ -104,17 +104,17 @@ def prepare_ocp(
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e4)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
-    if with_friction:
-        objective_functions.add(
-            FesObjective.custom_func_maximize_crank_power,
-            custom_type=ObjectiveFcn.Mayer,
-            node=Node.ALL_SHOOTING,
-            index=idx_crank,
-            target=target_power,   # should be negative here
-            quadratic=True,
-            weight=1e2,
-            **extra_params,
-        )
+    # if with_friction:
+    #     objective_functions.add(
+    #         FesObjective.custom_func_maximize_crank_power,
+    #         custom_type=ObjectiveFcn.Mayer,
+    #         node=Node.ALL,
+    #         index=idx_crank,
+    #         target=target_power,   # should be negative here
+    #         quadratic=True,
+    #         weight=1e2,
+    #         **extra_params,
+    #     )
 
     if 'rect_fem_r' in muscles:
         objective_functions.add(
@@ -127,7 +127,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('rect_fem_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
@@ -140,7 +140,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('vasmed_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
@@ -153,18 +153,18 @@ def prepare_ocp(
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e4,
+            weight=1e2,
         )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
-    # objective_functions.add(
-    #     # ObjectiveFcn.Lagrange.TRACK_STATE,
-    #     ObjectiveFcn.Mayer.TRACK_STATE,
-    #     node=Node.ALL,
-    #     key="qdot",
-    #     index=idx_crank,
-    #     target= target_velocity,
-    #     weight=1e3,
-    # )
+    objective_functions.add(
+        # ObjectiveFcn.Lagrange.TRACK_STATE,
+        ObjectiveFcn.Mayer.TRACK_STATE,
+        node=Node.ALL,
+        key="qdot",
+        index=idx_crank,
+        target= target_velocity,
+        weight=1e3,
+    )
 
     x_bounds = BoundsList()
     x_bounds.add("q", bounds=model.bounds_from_ranges("q"))
@@ -304,7 +304,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 35
+    n_shooting = 75
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
