@@ -101,7 +101,7 @@ def prepare_ocp(
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e4)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e5)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
@@ -163,7 +163,7 @@ def prepare_ocp(
         key="qdot",
         index=idx_crank,
         target= target_velocity,
-        weight=1e3,
+        weight=1e1,
     )
 
     x_bounds = BoundsList()
@@ -326,71 +326,73 @@ def main():
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)
 
-    ocp = prepare_ocp(
-        biorbd_model_path,
-        final_time=phase_period * n_shooting,
-        max_joint_torque=max_joint_torque,
-        with_torque=with_residual_torque,
-        with_friction=with_friction,
-        n_shooting=n_shooting,
-        q_init=q_init,
-        dq_init=dq_init,
-        target_power=target_power,
-        target_velocity=target_v,
-        fes_min=fes_min,
-        fes_max=fes_max,
-        idx=idx,
-        **extra_params,
-    )
-
-    # Custom plots
-    # ocp.add_plot_penalty(CostType.ALL)
-
-    # --- Print ocp structure --- #
-    # ocp.print(to_console=True, to_graph=False)
-
-    # --- Solve the ocp --- #
-    solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
-    solver.set_maximum_iterations(5000)
-    sol = ocp.solve(solver=solver)
-
-    sol.graphs()
-    # --- Show results --- #
-    # sol.graphs(show_bounds=True)
-    sol.print_cost()
-
-    # --- Animation --- #
-    # not implemented yet
-    # sol.animate()
-
-    # save data
-    states = sol.stepwise_states()
-    controls = sol.stepwise_controls()
-    q_sol, qdot_sol, cn_sol, f_sol = states["q"], states["qdot"], states["cn"], states["f"]
-    pw_sol = controls["pw"]
-    tau_joints = controls["tau"] if "tau" in controls else None
-    tau_res_sol = controls["resistive_torque"] if "resistive_torque" in controls else None
-    data = {
-        "q": q_sol, "qdot": qdot_sol, "cn": cn_sol, "f": f_sol,
-        "pw": pw_sol, "tau_resistive": tau_res_sol, "tau_joints": tau_joints,
-        "time": sol.stepwise_time(), "n_iterations": sol.iterations, "final_time": ocp.phase_time,
-        "solver_time": sol.solver_time_to_optimize, "real_time": sol.real_time_to_optimize,
-        "n_node": n_shooting, "freq": stim_freq, "n_trunc": n_pulse_trunc,
-        "target_vel": target_velocity_rpm, 'target_pwr': target_power,
-    }
-
+    ocp_2B_calculated = True
     folder_path = 'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
     filename = f'friction_{round(phase_period * n_shooting, 2)}s_{n_shooting}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}'
-    with open(f'{folder_path}' + filename + '.pkl', "wb") as file:
-        del sol.ocp
-        pickle.dump(data, file)
+
+    if ocp_2B_calculated:
+        ocp = prepare_ocp(
+            biorbd_model_path,
+            final_time=phase_period * n_shooting,
+            max_joint_torque=max_joint_torque,
+            with_torque=with_residual_torque,
+            with_friction=with_friction,
+            n_shooting=n_shooting,
+            q_init=q_init,
+            dq_init=dq_init,
+            target_power=target_power,
+            target_velocity=target_v,
+            fes_min=fes_min,
+            fes_max=fes_max,
+            idx=idx,
+            **extra_params,
+        )
+
+        # Custom plots
+        # ocp.add_plot_penalty(CostType.ALL)
+
+        # --- Print ocp structure --- #
+        # ocp.print(to_console=True, to_graph=False)
+
+        # --- Solve the ocp --- #
+        solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
+        solver.set_maximum_iterations(5000)
+        sol = ocp.solve(solver=solver)
+
+        sol.graphs()
+        # --- Show results --- #
+        # sol.graphs(show_bounds=True)
+        sol.print_cost()
+
+        # --- Animation --- #
+        # not implemented yet
+        # sol.animate()
+
+        # save data
+        states = sol.stepwise_states()
+        controls = sol.stepwise_controls()
+        q_sol, qdot_sol, cn_sol, f_sol = states["q"], states["qdot"], states["cn"], states["f"]
+        pw_sol = controls["pw"]
+        tau_joints = controls["tau"] if "tau" in controls else None
+        tau_res_sol = controls["resistive_torque"] if "resistive_torque" in controls else None
+        data = {
+            "q": q_sol, "qdot": qdot_sol, "cn": cn_sol, "f": f_sol,
+            "pw": pw_sol, "tau_resistive": tau_res_sol, "tau_joints": tau_joints,
+            "time": sol.stepwise_time(), "n_iterations": sol.iterations, "final_time": ocp.phase_time,
+            "solver_time": sol.solver_time_to_optimize, "real_time": sol.real_time_to_optimize,
+            "n_node": n_shooting, "freq": stim_freq, "n_trunc": n_pulse_trunc,
+            "target_vel": target_velocity_rpm, 'target_pwr': target_power,
+        }
+        with open(f'{folder_path}' + filename + '.pkl', "wb") as file:
+            del sol.ocp
+            pickle.dump(data, file)
 
     # calculate power with a torque driven example (inverse dynamics with contact points is not implemented yet)
     dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
     print(f'Calculating power {dump_path}{filename}')
-    to_be_calculated = True
+    power_2B_calculated = True
     import biorbd as brbd
-    if to_be_calculated:
+    if power_2B_calculated:
         calculate_power(dump_path,
                         biorbd_model_path,
                         # 'models/leg_model_cyclic_muscle_inversed_root_3_gravity_0.bioMod',
