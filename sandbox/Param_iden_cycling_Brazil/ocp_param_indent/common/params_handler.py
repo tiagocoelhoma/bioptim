@@ -15,7 +15,10 @@ def get_coefficients_sqrd(config, a_scale_values, angles, print_flag=True):
     x_data = angles
 
     # Degree of polynomial to fit
-    degree = 3
+    if config[:-1] == 'bflh140_':
+        degree = 2
+    else:
+        degree = 4
 
     # Fit polynomial to sqrt of data
     sqrt_y = np.sqrt(a_scale_values)
@@ -59,7 +62,7 @@ def get_coefficients(config, a_scale_values, angles, print_flag=True):
     angles_deg = np.array(angles)
     x_data = (180 - angles_deg) * np.pi / 180
     # degree = len(angles_deg) - 1
-    degree = 2
+    degree = 3
     coeffs = np.polyfit(x_data, a_scale_values, degree)
 
     if print_flag:

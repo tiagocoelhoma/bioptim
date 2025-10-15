@@ -140,7 +140,7 @@ version 4
 		rotations z
 		ranges
 				//0.92 2.01
-				0.72 2.21
+				0.5 2.5
 		mesh -0.0	 0.59	 -0.0
 		mesh 0 0 0
 		meshcolor	1 1 1
@@ -291,7 +291,7 @@ version 4
 		rotations z
 		ranges
 				//0.92 2.01   # attention! should be set accoring to experimental data
-				0.72 2.21   # attention! should be set accoring to experimental data
+				0.5 2.5   # attention! should be set accoring to experimental data
 		mesh 0 0 0
 		mesh -0.0	 0.59	 -0.0
 		meshcolor	1 1 1
