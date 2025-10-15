@@ -16,7 +16,7 @@ def get_coefficients_sqrd(config, a_scale_values, angles, print_flag=True):
 
     # Degree of polynomial to fit
     if config[:-1] == 'bflh140_':
-        degree = 2
+        degree = 4
     else:
         degree = 4
 

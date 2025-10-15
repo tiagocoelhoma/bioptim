@@ -342,6 +342,15 @@ def a_relation_ident(ocp_parameters,
     print(f'a_scale_values = {parameters}')
     a_params = [round(a, 4) for a in parameters]
     muscle_params = read_params(model_path, filename)
+
+    # import biorbd
+    # model = biorbd.Model(model_path)
+
+    # considering the knee range of motion defined in the Biomechanical Model todo: retrieve this information automat
+    knee_angle.append(0.5)  # min limit knee
+    a_params.append(0.0)
+    knee_angle.append(2.5)  # max limit knee
+    a_params.append(0.0)
     muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, print_flag)
     if save_results:
         update_parameters_value(filename, muscle, muscle_params[muscle])

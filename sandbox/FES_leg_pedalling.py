@@ -321,12 +321,12 @@ def main():
     # it is highly likely to cause problems.
     q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path, crank_angle=50)
 
-    print_flag = False
+    print_flag = True
     if print_flag:
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)
 
-    ocp_2B_calculated = False
+    ocp_2B_calculated = True
     folder_path = 'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
     filename = f'friction_{round(phase_period * n_shooting, 2)}s_{n_shooting}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}'
 
