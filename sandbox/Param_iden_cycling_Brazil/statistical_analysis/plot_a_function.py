@@ -33,7 +33,7 @@ def poly_squared(x, coeffs):
     return poly_val**2
     # return np.polyval(coeffs, x)**2
 
-def main(biorbd_model_path, muscle_params, knee_range=[0.8, 2.3]):
+def main(biorbd_model_path, muscle_params, knee_range=[0.5, 2.5]):
     # Plot
     model = BiorbdModel(biorbd_model_path)
     filtered_params = {m: muscle_params[m] for m in model.muscle_names if m in muscle_params}
@@ -41,7 +41,7 @@ def main(biorbd_model_path, muscle_params, knee_range=[0.8, 2.3]):
     ncols=int(len(filtered_params)/2)
     # Define the x range
     x = np.linspace(knee_range[0], knee_range[1], 500)
-    fig, axs = plt.subplots(nrows=2, ncols=ncols, figsize=(10, 6))
+    # fig, axs = plt.subplots(nrows=2, ncols=ncols, figsize=(10, 6))
 
     colors = {'rect_fem_r': 'red',
               'rect_fem_l': 'orange',
@@ -56,24 +56,70 @@ def main(biorbd_model_path, muscle_params, knee_range=[0.8, 2.3]):
               }
 
 
+    # === FIGURA 1: curvas individuais ===
+    fig, axs = plt.subplots(nrows=2, ncols=ncols, figsize=(10, 6))
+    axs = axs.flatten()
+
+    all_y = {}  # armazenar curvas para depois normalizar
+
     for m, (muscle, coeffs) in enumerate(filtered_params.items()):
         y = np.array([poly_squared(xi, coeffs[0]) for xi in x])
-        idx_0, idx_1 = m//ncols, m%ncols
-        axs[idx_0, idx_1].plot(x, y, label=muscle, color=colors[muscle])
-        axs[idx_0, idx_1].set_title(f'{muscle}')
-        axs[idx_0, idx_1].axhline(
-            y=15000, color="gray", linestyle="--", linewidth=1
-        )
-        axs[idx_0, idx_1].axhline(
-            y=0, color="gray", linestyle="--", linewidth=1
-        )
-        axs[idx_0, idx_1].axhline(
-            y=50000, color="red", linestyle=":", linewidth=1
-        )
+        all_y[muscle] = y
+
+        axs[m].plot(x, y, label=muscle, color=colors.get(muscle, 'black'))
+        axs[m].set_title(muscle)
+        axs[m].axhline(y=0, color="gray", linestyle="--", linewidth=1)
+        axs[m].axhline(y=15000, color="gray", linestyle="--", linewidth=1)
+        axs[m].axhline(y=50000, color="red", linestyle=":", linewidth=1)
 
     fig.tight_layout(rect=[0, 0, 1, 0.94])
     fig.suptitle("Squared Polynomial Curves for Muscles (y = (poly(x))²)", fontsize=14)
+    # plt.show()
 
+    # === FIGURA 2: todas as curvas normalizadas ===
+    fig2, ax2 = plt.subplots(figsize=(8, 5))
+    for muscle, y in all_y.items():
+        y_norm = (y - np.min(y)) / (np.max(y) - np.min(y))
+        ax2.plot(x, y_norm, label=muscle, color=colors.get(muscle, 'black'))
+
+    ax2.set_title("Normalized Squared Polynomial Curves (0–1 scale)")
+    ax2.set_xlabel("Knee angle [rad]")
+    ax2.set_ylabel("Normalized value")
+    ax2.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    fig2.tight_layout()
+
+    # plt.show()
+
+    # === FIGURA 3: todas as curvas normalizadas (global max) ===
+    # Calcula o maior valor entre todas as curvas
+    global_max = max(np.max(y) for y in all_y.values())
+
+    fig2, ax2 = plt.subplots(figsize=(8, 5))
+    for muscle, y in all_y.items():
+        y_norm = y / global_max
+        ax2.plot(x, y_norm, label=muscle, color=colors.get(muscle, 'black'))
+
+    ax2.set_title("Normalized Squared Polynomial Curves (global normalization)")
+    ax2.set_xlabel("Knee angle [rad]")
+    ax2.set_ylabel("Normalized Torque") #y / max(y_all)
+    ax2.grid(True, linestyle="--", linewidth=0.5, alpha=0.7)
+    # ax2.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+    ax2.legend(
+        loc="upper center",         # posição central no topo
+        # bbox_to_anchor=(0.5, 1.15), # desloca para dentro/fora do gráfico
+        ncol=6,                     # número de colunas (ajuste conforme nº de músculos)
+        frameon=False,              # sem moldura (opcional)
+        fontsize=8
+    )
+
+    fig2.tight_layout()
+    # plt.show()
+
+    # Adiciona área sombreada entre x = 1.3 e x = 1.9
+    ax2.axvspan(1.3, 2.1, color='gray', alpha=0.2, label='Knee range 1.3–1.9 rad')
+    plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/normalized_curves.pdf', format='pdf', dpi=300,
+                bbox_inches='tight')
     plt.show()
 
 if __name__ == "__main__":
