@@ -127,19 +127,19 @@ def main():
             "cn": (0.0, 2.0, 0.0),  # cn_min, cn_max, cn_init
             "tau": (0.0, 0.0, 0.0),  # tau_min, tau_max, tau_init
             "fes": fes, # fes_min, fes_max (800+800us), fes_init, fes_sc (300+300us)
-            "ascale": (0, 50e3, 5e3),  # ascale_min, ascale_max, ascale_init
-            "km": (0.020, 0.800, 0.30130779),  # km_param_min, km_param_max, km_param_init
-            "tau_1": (0.010, 0.1, 0.06637256),  # tau_1_param_min, tau_1_param_max, tau_1_param_init
-            "tau_2": (0.001, 0.2, 0.01),  # tau_2_param_min, tau_2_param_max, tau_2_param_init
+            "ascale": (0, 100e3, 5e3),  # ascale_min, ascale_max, ascale_init
+            "km": (0.020, 0.600, 0.30130779),  # km_param_min, km_param_max, km_param_init
+            "tau_1": (0.010, 0.1, 0.044),  # tau_1_param_min, tau_1_param_max, tau_1_param_init
+            "tau_2": (0.001, 0.1, 0.018),  # tau_2_param_min, tau_2_param_max, tau_2_param_init
             "alpha": (-1.0, 2.0, 0.0),  # alpha_min, alpha_max, alpha_init
             "pd0pdt": (a, pd0, pdt),  #
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 
