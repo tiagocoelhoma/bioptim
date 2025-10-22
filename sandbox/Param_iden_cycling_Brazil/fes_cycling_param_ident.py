@@ -123,7 +123,7 @@ def main():
         fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6}
         fes = {'fes_min': pd0, 'fes_max': 1600e-6, 'fes_init': 800e-6, 'fes_sc': 800e-6} if muscle == 'bflh140_r' or muscle == 'bflh140_l' else fes
         problem_params = {
-            "f": (0, 5000, 0),  # f_min, f_max, f_init
+            "f": (0, 10000, 0),  # f_min, f_max, f_init
             "cn": (0.0, 2.0, 0.0),  # cn_min, cn_max, cn_init
             "tau": (0.0, 0.0, 0.0),  # tau_min, tau_max, tau_init
             "fes": fes, # fes_min, fes_max (800+800us), fes_init, fes_sc (300+300us)
@@ -137,7 +137,7 @@ def main():
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
         # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
-        a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
+        # a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
         prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)

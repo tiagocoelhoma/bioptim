@@ -161,10 +161,10 @@ def prepare_ocp(
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1, quadratic=True)
     print(f'Max torque with stim on with nodes={n_shooting} (crank angle: {q_init[0]}): {max_torque} Nm')
     for node, node_target in enumerate(tau_target):
-        # weight = 1e2
-        # weight = 1e5 if stim_flag[node] == 1 else weight
-        # weight = 1e6 if node_target == max_value else weight
-        weight = 1e4
+        weight = 1e1
+        weight = 1e4 if stim_flag[node] == 1 else weight
+        weight = 1e8 if node_target == max_torque else weight
+        # weight = 1e4
         objective_functions.add(
             FesObjective.custom_func_maximize_crank_torque,
             custom_type=ObjectiveFcn.Mayer,
@@ -218,7 +218,7 @@ def prepare_ocp(
     # u_bounds[i]["resistive_torque"][:, [0]] = 0
     if with_residual_torque:
         u_bounds.add("tau", min_bound=[tau_min] * nb_tau, max_bound=[tau_max] * nb_tau)
-        u_bounds[i]["tau"][:, [0]] = 0
+        u_bounds["tau"][:, [0]] = 0
 
     extra_params_u = {"n_channels": 1, "stim_flag": stim_flag, "fes_params": problem_parameters["fes"]}
     u_bounds.add(
