@@ -77,14 +77,7 @@ def prepare_ocp(
     f_min, f_max, f_init = problem_parameters["f"]
     cn_min, cn_max, cn_init = problem_parameters["cn"]
     tau_min, tau_max, tau_init = problem_parameters["tau"]
-    # fes_min, fes_max, fes_init, fes_sc = problem_parameters["fes"]
-    ascale_min, ascale_max, ascale_init = problem_parameters["ascale"]
-    km_param_min, km_param_max, km_param_init = problem_parameters["km"]
-    tau_1_param_min, tau_1_param_max, tau_1_param_init = problem_parameters["tau_1"]
-    tau_2_param_min, tau_2_param_max, tau_2_param_init = problem_parameters["tau_2"]
     alpha_min, alpha_max, alpha_init = problem_parameters["alpha"]
-    pd0 = problem_parameters["pd0pdt"][1]
-    pdt = problem_parameters["pd0pdt"][2]
 
     # Add constraints and objectives (to be included in the following loop)
     objective_functions = ObjectiveList()
@@ -259,7 +252,7 @@ def prediction(ocp_parameters,
 
     # --- Prepare the optimal control program --- #
     print(
-        f'\nRunning identification of the A function for {muscle} using {model_path} with parameters {read_params(model_path, filename)}')
+        f'\nRunning prediction {muscle} using {model_path} with parameters {read_params(model_path, filename)}')
     for i in range(n_phases):
         extra_params = {'t_phase': t_duration,
                         # 'n_pulse_trunc': n_pulse_trunc,

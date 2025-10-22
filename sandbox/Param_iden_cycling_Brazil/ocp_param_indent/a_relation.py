@@ -24,7 +24,9 @@ from bioptim import (
     BiorbdModel, PhaseTransitionList, PhaseTransitionFcn,
 )
 from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import read_params, \
-    update_parameters_value, get_coefficients_sqrd
+    update_parameters_value, get_coefficients_sqrd, get_coefficients_pchip, get_coefficients_cubicspline, \
+    get_coefficients_pchip_v2, get_coefficients_pchip_v3
+from sandbox.Param_iden_cycling_Brazil.opt_sol_results.save_torques import salvar_torques
 
 # import the custom model
 from sandbox.custom_package.fes_dynamics import ParamIdentDynamics, set_muscle_ascale, set_muscle_tau2_param, \
@@ -53,7 +55,7 @@ def prepare_ocp(
         with_resistive_torque: bool = True,
         only_parameter_a: bool = False,
         problem_parameters: dict = {},
-        ode_solver: OdeSolverBase = OdeSolver.RK4(n_integration_steps=5),
+        ode_solver: OdeSolverBase = OdeSolver.RK2(n_integration_steps=5),
         phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
         n_threads: int = 16,
         expand_dynamics: bool = True,
@@ -159,10 +161,10 @@ def prepare_ocp(
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e1, quadratic=True)
     print(f'Max torque with stim on with nodes={n_shooting} (crank angle: {q_init[0]}): {max_torque} Nm')
     for node, node_target in enumerate(tau_target):
-        weight = 1e2
-        weight = 1e5 if stim_flag[node] == 1 else weight
+        # weight = 1e2
+        # weight = 1e5 if stim_flag[node] == 1 else weight
         # weight = 1e6 if node_target == max_value else weight
-        # weight = 1e4
+        weight = 1e4
         objective_functions.add(
             FesObjective.custom_func_maximize_crank_torque,
             custom_type=ObjectiveFcn.Mayer,
@@ -284,7 +286,7 @@ def a_relation_ident(ocp_parameters,
     tau_target = ocp_parameters['target']
     stim_flag = ocp_parameters['stim_flag']
     n_phases = ocp_parameters['n_phases']
-    knee_ang = ocp_parameters['joint_angle']
+    crank_ang = ocp_parameters['joint_angle']
     mdl_param = ocp_parameters['params']
     # only_parameter_a = ocp_parameters['only_parameter_a']
     muscle = ocp_parameters['muscle']
@@ -292,8 +294,7 @@ def a_relation_ident(ocp_parameters,
 
     a, pd0, pdt = problem_parameters['pd0pdt']
     mdl_param = read_params(model_path, filename)[muscle]
-    parameters = []
-    knee_angle = []
+    parameters, knee_angle, predicted_torques = [], [], []
 
     # --- Prepare the optimal control program --- #
     print(
@@ -338,20 +339,100 @@ def a_relation_ident(ocp_parameters,
         if show_animate:
             sol.animate()
 
+        # plot torque identified
+        predcted_tau = np.concatenate(sol.stepwise_controls()["resistive_torque"]).flatten()
+        predicted_torques.append(predcted_tau)
+        arquivo = "Param_iden_cycling_Brazil/opt_sol_results/pickles/torques_crankset_identification.json"
+        salvar_torques(
+            arquivo, muscle, crank_ang[i],
+            torque_predito=predcted_tau,
+            torque_medido=tau_target[i]
+        )
+
         # saving identified parameters
     print(f'a_scale_values = {parameters}')
     a_params = [round(a, 4) for a in parameters]
     muscle_params = read_params(model_path, filename)
 
-    # import biorbd
-    # model = biorbd.Model(model_path)
+    # Plot for the identified torques
+    rmse_values = []
+    r2_values = []
+    import matplotlib.pyplot as plt
+    from sklearn.metrics import mean_squared_error, r2_score
+    plt.figure(figsize=(10, 5))
+    for i, torque in enumerate(tau_target):
+        center = crank_ang[i]
+        n = len(torque)
+        x = np.arange(n) - n // 2 + center  # center the curve at the knee angle
+        plt.plot(x, torque)
+        plt.plot(x, predicted_torques[i], linestyle='dotted')
+
+        y_true = np.array(torque)
+        y_pred = np.array(predicted_torques[i])
+
+        # === Cálculo das métricas ===
+        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+        r2 = r2_score(y_true, y_pred)
+
+        rmse_values.append(rmse)
+        r2_values.append(r2)
+
+    # === Estatísticas globais ===
+    mean_rmse = np.mean(rmse_values)
+    mean_r2 = np.mean(r2_values)
+
+    # === Anotação na figura ===
+    textstr = '\n'.join((
+        r'$\mathrm{RMSE_{mean}}=%.3f$' % (mean_rmse,),
+        r'$\mathrm{R^2_{mean}}=%.3f$' % (mean_r2,)
+    ))
+
+    plt.text(0.02, 0.95, textstr, transform=plt.gca().transAxes,
+             fontsize=11, verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+
+    # MAS queremos uma legenda genérica, não repetida por cor
+    from matplotlib.lines import Line2D
+
+    # Cria "linhas falsas" só para legenda
+    custom_lines = [
+        Line2D([0], [0], color='k', linestyle='-'),  # medida
+        Line2D([0], [0], color='k', linestyle='--')  # predita
+    ]
+
+    plt.legend(custom_lines, ['measured', 'predicted'])
+
+    plt.xlabel("Crank angle (°)")
+    plt.ylabel("Torque [Nm]")
+    plt.title("Torque curves centered at their respective crank angles")
+
+    plt.grid(True)
+    plt.xticks(crank_ang)  # show only the knee angles if you want it cleaner
+    plt.tight_layout()
+
+    plt.savefig(f'Param_iden_cycling_Brazil/opt_sol_results/images/identified_{muscle}.pdf', format='pdf', dpi=300,
+                bbox_inches='tight')
+    plt.show()
+
+
 
     # considering the knee range of motion defined in the Biomechanical Model todo: retrieve this information automat
-    knee_angle.append(0.5)  # min limit knee
-    a_params.append(0.0)
-    knee_angle.append(2.5)  # max limit knee
-    a_params.append(0.0)
-    muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, print_flag)
+    # knee_angle.append(0.5)  # min limit knee
+    # a_params.append(0.0)
+    # knee_angle.append(2.5)  # max limit knee
+    # a_params.append(0.0)
+    # muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, print_flag)
+    # muscle_params[muscle][0] = get_coefficients_pchip(muscle, a_params, knee_angle, print_flag)
+    # muscle_params[muscle][0] = get_coefficients_pchip_v2(muscle, a_params, knee_angle, print_flag)
+
+
+    # a_params = [91848.10562124691, 18920.82741782574, 9462.721970918114, 8534.37732703361, 11798.635555297]
+    # knee_angle = [2.091, 1.984, 1.714, 1.431, 1.283]
+    muscle_params[muscle][0] = get_coefficients_pchip_v3(muscle, a_params, knee_angle,         degree=14,
+        positive_mode=True,
+        print_flag=True)
+
+    # muscle_params[muscle][0] = get_coefficients_cubicspline(muscle, a_params, knee_angle, print_flag)
     if save_results:
         update_parameters_value(filename, muscle, muscle_params[muscle])
 
