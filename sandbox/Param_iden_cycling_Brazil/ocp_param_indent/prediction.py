@@ -280,7 +280,7 @@ def prediction(ocp_parameters,
                           **extra_params)
 
         # --- Solve the program --- #
-        sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=1000, _tol=1e-4))
+        sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=1000, _tol=1e-6))
 
         # --- Show results --- #
         # sol.print_cost()
