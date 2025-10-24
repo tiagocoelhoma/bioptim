@@ -142,3 +142,4 @@ sandbox/
 !/tests/shard6/sol_controls.npy
 !/tests/shard6/sol_states.npy
 !/tests/shard6/sol_states_dot.npy
+/sandbox/Param_iden_cycling_Brazil/data_exp/
