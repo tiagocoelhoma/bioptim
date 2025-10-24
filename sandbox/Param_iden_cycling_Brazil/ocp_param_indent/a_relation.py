@@ -417,14 +417,14 @@ def a_relation_ident(ocp_parameters,
 
 
     # considering the knee range of motion defined in the Biomechanical Model todo: retrieve this information automat
-    knee_angle.append(0.5)  # min limit knee
-    a_params.append(0.0)
-    knee_angle.append(2.5)  # max limit knee
-    a_params.append(0.0)
+    if muscle[:-1] == 'bflh140_':
+        knee_angle.append(0.5)  # min limit knee
+        a_params.append(0.0)
+        knee_angle.append(2.5)  # max limit knee
+        a_params.append(0.0)
     # muscle_params[muscle][0] = get_coefficients_sqrd(muscle, a_params, knee_angle, print_flag)
     # muscle_params[muscle][0] = get_coefficients_pchip(muscle, a_params, knee_angle, print_flag)
     # muscle_params[muscle][0] = get_coefficients_pchip_v2(muscle, a_params, knee_angle, print_flag)
-
 
     # a_params = [91848.10562124691, 18920.82741782574, 9462.721970918114, 8534.37732703361, 11798.635555297]
     # knee_angle = [2.091, 1.984, 1.714, 1.431, 1.283]

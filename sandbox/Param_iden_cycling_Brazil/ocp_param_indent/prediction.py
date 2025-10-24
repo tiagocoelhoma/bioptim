@@ -129,13 +129,22 @@ def prepare_ocp(
         )
     )
 
-    constraints.add(ConstraintFcn.TRACK_STATE,
-                    key="qdot",
-                    node=Node.ALL,
-                    index=0,
-                    target=0,
-                    # weight=1e3,
-                    )
+    objective_functions.add(
+        ObjectiveFcn.Mayer.TRACK_STATE,
+        key="qdot",
+        index=0,
+        node=Node.ALL,
+        target=0,
+        weight=1e8,
+    )
+
+    # constraints.add(ConstraintFcn.TRACK_STATE,
+    #                 key="qdot",
+    #                 node=Node.ALL,
+    #                 index=0,
+    #                 target=0,
+    #                 # weight=1e3,
+    #                 )
 
     # Path constraint
     nb_tau = model.nb_tau
@@ -280,7 +289,7 @@ def prediction(ocp_parameters,
                           **extra_params)
 
         # --- Solve the program --- #
-        sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=1000, _tol=1e-6))
+        sol = ocp.solve(Solver.IPOPT(show_online_optim=False, _max_iter=500, _tol=1e-4))
 
         # --- Show results --- #
         # sol.print_cost()

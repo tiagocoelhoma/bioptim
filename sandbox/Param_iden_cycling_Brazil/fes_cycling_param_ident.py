@@ -139,7 +139,7 @@ def main():
         # tau1_tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 
