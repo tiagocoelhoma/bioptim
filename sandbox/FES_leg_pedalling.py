@@ -101,7 +101,7 @@ def prepare_ocp(
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e3)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e6)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
@@ -321,7 +321,7 @@ def main():
     # it is highly likely to cause problems.
     q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path, crank_angle=50)
 
-    print_flag = True
+    print_flag = False
     if print_flag:
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)
