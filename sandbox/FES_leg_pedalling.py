@@ -100,8 +100,8 @@ def prepare_ocp(
     # Add objective functions
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e6)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
     # if with_friction:
@@ -127,7 +127,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('rect_fem_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e2,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
@@ -140,7 +140,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('vasmed_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e2,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
@@ -153,7 +153,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e2,
         )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -163,7 +163,7 @@ def prepare_ocp(
         key="qdot",
         index=idx_crank,
         target= target_velocity,
-        weight=1e2,
+        weight=1e3,
     )
 
     x_bounds = BoundsList()
@@ -259,7 +259,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
 
 
 # PROBLEM PARAMETERS
-f_min, f_max, f_init = 0, 5000, 0
+f_min, f_max, f_init = 0, 10000, 0
 cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 # fes_min, fes_max, fes_init = 86e-6, 1600e-6, 86e-6  # todo: verificar scala?
@@ -304,7 +304,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 75
+    n_shooting = 72
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
