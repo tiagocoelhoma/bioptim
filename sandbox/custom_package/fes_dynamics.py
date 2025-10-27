@@ -550,7 +550,7 @@ class ParamIdentDynamics(CustomFesDynamics):
             km = muscle_params[3]
             a_scale = nlp.parameters["a_scale_param"].cx
             if not only_parameter_a:
-                tau1 = nlp.parameters["tau_1_param"].cx
+                # tau1 = nlp.parameters["tau_1_param"].cx
                 tau2 = nlp.parameters["tau_2_param"].cx
                 km = nlp.parameters["km_param"].cx
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
