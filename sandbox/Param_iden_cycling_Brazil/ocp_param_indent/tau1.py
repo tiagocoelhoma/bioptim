@@ -275,18 +275,13 @@ def tau1_ident(ocp_parameters,
     with_resistive_torque = ocp_parameters['with_resistive_torque']
     with_residual_torque = ocp_parameters['with_residual_torque']
     t_duration = ocp_parameters['pulse_period']  # Attention: duration of each pulse
-    times = ocp_parameters['phase_period']  # Attention: duration of each phase of the problem
-    nodes = ocp_parameters['n_shooting']
     n_pulse_trunc = ocp_parameters['n_pulse_trunc']
     tau_target = ocp_parameters['target']
     stim_flag = ocp_parameters['stim_flag']
     n_phases = ocp_parameters['n_phases']
     knee_ang = ocp_parameters['joint_angle']
     mdl_param = ocp_parameters['params']
-    # only_parameter_a = ocp_parameters['only_parameter_a']
     muscle = ocp_parameters['muscle']
-    stim_freq = ocp_parameters['stim_freq']
-
     a, pd0, pdt = problem_parameters['pd0pdt']
 
     # --- Prepare the optimal control program --- #
@@ -326,16 +321,17 @@ def tau1_ident(ocp_parameters,
             decay_segment = tau_segment[start_idx:end_idx]
 
             # Visualizar
-            plt.figure()
-            plt.plot(tau, label='Torque total')
-            plt.axvline(off_idx, color='r', linestyle='--', label='stim off')
-            plt.axhline(tau_50, color='orange', linestyle=':', label='50%')
-            plt.axhline(tau_25, color='green', linestyle=':', label='25%')
-            plt.plot(np.arange(off_idx + start_idx, off_idx + end_idx), decay_segment, 'k', linewidth=2,
-                     label='Trecho 50–25%')
-            plt.title(f"Curva {i} - Decaimento torque")
-            plt.legend()
-            plt.show()
+            if plot_graphs:
+                plt.figure()
+                plt.plot(tau, label='Torque total')
+                plt.axvline(off_idx, color='r', linestyle='--', label='stim off')
+                plt.axhline(tau_50, color='orange', linestyle=':', label='50%')
+                plt.axhline(tau_25, color='green', linestyle=':', label='25%')
+                plt.plot(np.arange(off_idx + start_idx, off_idx + end_idx), decay_segment, 'k', linewidth=2,
+                         label='Trecho 50–25%')
+                plt.title(f"Curva {i} - Decaimento torque")
+                plt.legend()
+                plt.show()
 
             tau_targets.append(decay_segment)
             n_shootings.append(len(decay_segment))

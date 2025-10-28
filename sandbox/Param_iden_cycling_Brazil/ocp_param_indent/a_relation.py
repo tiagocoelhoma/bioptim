@@ -354,67 +354,66 @@ def a_relation_ident(ocp_parameters,
     a_params = [round(a, 4) for a in parameters]
     muscle_params = read_params(model_path, filename)
 
-    # Plot for the identified torques
-    rmse_values = []
-    r2_values = []
-    import matplotlib.pyplot as plt
-    from sklearn.metrics import mean_squared_error, r2_score
-    plt.figure(figsize=(10, 5))
-    for i, torque in enumerate(tau_target):
-        center = crank_ang[i]
-        n = len(torque)
-        x = np.arange(n) - n // 2 + center  # center the curve at the knee angle
-        plt.plot(x, torque)
-        plt.plot(x, predicted_torques[i], linestyle='dotted')
+    if plot_graphs:
+        # Plot for the identified torques
+        rmse_values = []
+        r2_values = []
+        import matplotlib.pyplot as plt
+        from sklearn.metrics import mean_squared_error, r2_score
+        plt.figure(figsize=(10, 5))
+        for i, torque in enumerate(tau_target):
+            center = crank_ang[i]
+            n = len(torque)
+            x = np.arange(n) - n // 2 + center  # center the curve at the knee angle
+            plt.plot(x, torque)
+            plt.plot(x, predicted_torques[i], linestyle='dotted')
 
-        y_true = np.array(torque)
-        y_pred = np.array(predicted_torques[i])
+            y_true = np.array(torque)
+            y_pred = np.array(predicted_torques[i])
 
-        # === Cálculo das métricas ===
-        rmse = np.sqrt(mean_squared_error(y_true, y_pred))
-        r2 = r2_score(y_true, y_pred)
+            # === Cálculo das métricas ===
+            rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+            r2 = r2_score(y_true, y_pred)
 
-        rmse_values.append(rmse)
-        r2_values.append(r2)
+            rmse_values.append(rmse)
+            r2_values.append(r2)
 
-    # === Estatísticas globais ===
-    mean_rmse = np.mean(rmse_values)
-    mean_r2 = np.mean(r2_values)
+        # === Estatísticas globais ===
+        mean_rmse = np.mean(rmse_values)
+        mean_r2 = np.mean(r2_values)
 
-    # === Anotação na figura ===
-    textstr = '\n'.join((
-        r'$\mathrm{RMSE_{mean}}=%.3f$' % (mean_rmse,),
-        r'$\mathrm{R^2_{mean}}=%.3f$' % (mean_r2,)
-    ))
+        # === Anotação na figura ===
+        textstr = '\n'.join((
+            r'$\mathrm{RMSE_{mean}}=%.3f$' % (mean_rmse,),
+            r'$\mathrm{R^2_{mean}}=%.3f$' % (mean_r2,)
+        ))
 
-    plt.text(0.02, 0.95, textstr, transform=plt.gca().transAxes,
-             fontsize=11, verticalalignment='top',
-             bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
+        plt.text(0.02, 0.95, textstr, transform=plt.gca().transAxes,
+                 fontsize=11, verticalalignment='top',
+                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.7))
 
-    # MAS queremos uma legenda genérica, não repetida por cor
-    from matplotlib.lines import Line2D
+        # MAS queremos uma legenda genérica, não repetida por cor
+        from matplotlib.lines import Line2D
 
-    # Cria "linhas falsas" só para legenda
-    custom_lines = [
-        Line2D([0], [0], color='k', linestyle='-'),  # medida
-        Line2D([0], [0], color='k', linestyle='--')  # predita
-    ]
+        # Cria "linhas falsas" só para legenda
+        custom_lines = [
+            Line2D([0], [0], color='k', linestyle='-'),  # medida
+            Line2D([0], [0], color='k', linestyle='--')  # predita
+        ]
 
-    plt.legend(custom_lines, ['measured', 'predicted'])
+        plt.legend(custom_lines, ['measured', 'predicted'])
 
-    plt.xlabel("Crank angle (°)")
-    plt.ylabel("Torque [Nm]")
-    plt.title("Torque curves centered at their respective crank angles")
+        plt.xlabel("Crank angle (°)")
+        plt.ylabel("Torque [Nm]")
+        plt.title("Torque curves centered at their respective crank angles")
 
-    plt.grid(True)
-    plt.xticks(crank_ang)  # show only the knee angles if you want it cleaner
-    plt.tight_layout()
+        plt.grid(True)
+        plt.xticks(crank_ang)  # show only the knee angles if you want it cleaner
+        plt.tight_layout()
 
-    plt.savefig(f'Param_iden_cycling_Brazil/opt_sol_results/images/identified_{muscle}.pdf', format='pdf', dpi=300,
-                bbox_inches='tight')
-    plt.show()
-
-
+        plt.savefig(f'Param_iden_cycling_Brazil/opt_sol_results/images/identified_{muscle}.pdf', format='pdf', dpi=300,
+                    bbox_inches='tight')
+        plt.show()
 
     # considering the knee range of motion defined in the Biomechanical Model todo: retrieve this information automat
     if muscle[:-1] == 'bflh140_':
@@ -433,7 +432,7 @@ def a_relation_ident(ocp_parameters,
                                                          angles=knee_angle,
                                                          degree=14,
                                                          positive_mode=True,
-                                                         print_flag=True)
+                                                         print_flag=plot_graphs)
 
     # muscle_params[muscle][0] = get_coefficients_cubicspline(muscle, a_params, knee_angle, print_flag)
     if save_results:
