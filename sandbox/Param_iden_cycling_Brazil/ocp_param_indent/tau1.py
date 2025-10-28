@@ -302,7 +302,7 @@ def tau1_ident(ocp_parameters,
                 continue
 
             tau_max = np.max(tau_segment)
-            tau_50 = 0.5 * tau_max
+            tau_50 = 0.75 * tau_max
             tau_25 = 0.25 * tau_max
 
             # Índices relativos onde o torque cruza 50% e 25%

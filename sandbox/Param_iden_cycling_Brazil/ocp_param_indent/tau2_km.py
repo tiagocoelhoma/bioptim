@@ -210,9 +210,9 @@ def prepare_ocp(
         max_torque = np.max(tau_target[mask])
 
         for node, node_target in enumerate(tau_target):
-            weight = 1e1
-            weight = 1e4 if stim_flag[i][node] == 1 else weight
-            weight = 1e6 if node_target == max_torque else weight
+            weight = 1e2
+            weight = 1e5 if stim_flag[i][node] == 1 else weight
+            # weight = 1e6 if node_target == max_torque else weight
             # weight = 1e4
             objective_functions.add(
                 FesObjective.custom_func_maximize_crank_torque,
