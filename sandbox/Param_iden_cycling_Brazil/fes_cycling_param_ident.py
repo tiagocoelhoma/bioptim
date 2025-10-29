@@ -44,9 +44,9 @@ def main():
         # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, -1]],
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]],
-        ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
+        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
         ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
-        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
+        # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
 
@@ -57,9 +57,14 @@ def main():
 
     qvec = get_initial_position()
     # from sandbox.cycling_torque import main as get_pd0pdt
-    from FES_leg_param_ident_pdpdt_plot import main as get_pd0pdt
-    a, pd0, pdt = get_pd0pdt(print_flag=False)
-    print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
+    # from FES_leg_param_ident_pdpdt_plot import main as get_pd0pdt
+    # a, pd0, pdt = get_pd0pdt(print_flag=print_flag)
+    # print(f'using pd0 and pdt average values. pd0 = {pd0} and pdt = {pdt}')
+
+    # todo criar funcao para executar? e ler os parametros de pd0 pdt
+    filename = 'Param_iden_cycling_Brazil/opt_sol_results/pickles/pd0pdt_v2.pkl'
+    pd0_pdt_data = load_pickle(filename)
+
 
     print(f'\nInitial parameters are: {load_pickle(muscle_params_file)}')
     for d, dt in enumerate(data_information):
@@ -70,6 +75,10 @@ def main():
         df = pd.read_csv(f'Param_iden_cycling_Brazil/data_exp/{data_file}', delimiter='\t')
         torque = df['Torque (Nm)'].values.flatten()
         crank_angles = df['Angle(deg)'].values.flatten()
+
+        # retrieve pd0pdt parameters
+        a, pd0, pdt = pd0_pdt_data[muscle]
+        print(f"Parameters pd0 and pdt for muscle {muscle} {pd0_pdt_data[muscle]}")
 
         # angle measured in the ROTOR IN2POWER but corresponding to the 0 degress in simulation
         crank_angle_offset = 90  # right leg

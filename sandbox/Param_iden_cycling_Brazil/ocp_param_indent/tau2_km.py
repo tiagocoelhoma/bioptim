@@ -225,14 +225,23 @@ def prepare_ocp(
                 phase=i,
             )
 
-        constraints.add(ConstraintFcn.TRACK_STATE,
-                        key="qdot",
-                        node=Node.ALL,
-                        index=0,
-                        target=0,
-                        # weight=1e3,
-                        phase=i,
-                        )
+        # constraints.add(ConstraintFcn.TRACK_STATE,
+        #                 key="qdot",
+        #                 node=Node.ALL,
+        #                 index=0,
+        #                 target=0,
+        #                 # weight=1e3,
+        #                 phase=i,
+        #                 )
+            objective_functions.add(
+                ObjectiveFcn.Mayer.TRACK_STATE,
+                key="qdot",
+                index=0,
+                node=Node.ALL,
+                target=0,
+                weight=1e8,
+                phase=i,
+            )
 
     # Path constraint
     nb_tau = model[0].nb_tau
@@ -360,8 +369,9 @@ def tau2_km_ident(ocp_parameters,
     print(f'\nRunning identification tau1, tau2, km for {muscle} using {model_path}...')
     extra_params = {'t_phase': t_duration,
                     # 'n_pulse_trunc': n_pulse_trunc,
-                    'pd0': pd0,
-                    'pdt': pdt,
+                    'pd0pdt': problem_parameters['pd0pdt'],
+                    # 'pd0': pd0,
+                    # 'pdt': pdt,
                     'muscle_params': mdl_param,
                     }
     ocp = prepare_ocp(biorbd_model_path=model_path,

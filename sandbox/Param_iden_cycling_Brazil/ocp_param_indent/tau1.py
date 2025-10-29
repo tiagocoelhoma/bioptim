@@ -282,7 +282,7 @@ def tau1_ident(ocp_parameters,
     knee_ang = ocp_parameters['joint_angle']
     mdl_param = ocp_parameters['params']
     muscle = ocp_parameters['muscle']
-    a, pd0, pdt = problem_parameters['pd0pdt']
+    # a, pd0, pdt = problem_parameters['pd0pdt']
 
     # --- Prepare the optimal control program --- #
     print(f'\nRunning identification tau1, tau2, km for {muscle} using {model_path}...')
@@ -340,8 +340,9 @@ def tau1_ident(ocp_parameters,
 
     extra_params = {'t_phase': t_duration,
                     # 'n_pulse_trunc': n_pulse_trunc,
-                    'pd0': pd0,
-                    'pdt': pdt,
+                    'pd0pdt': problem_parameters['pd0pdt'],
+                    # 'pd0': pd0,
+                    # 'pdt': pdt,
                     'muscle_params': mdl_param,
                     }
 

@@ -301,8 +301,9 @@ def a_relation_ident(ocp_parameters,
         f'\nRunning identification of the A function for {muscle} using {model_path} with parameters {read_params(model_path, filename)}')
     extra_params = {'t_phase': t_duration,
                     # 'n_pulse_trunc': n_pulse_trunc,
-                    'pd0': pd0,
-                    'pdt': pdt,
+                    'pd0pdt': problem_parameters['pd0pdt'],
+                    # 'pd0': pd0,
+                    # 'pdt': pdt,
                     'muscle_params': mdl_param,
                     }
     for i in range(n_phases):
@@ -354,7 +355,7 @@ def a_relation_ident(ocp_parameters,
     a_params = [round(a, 4) for a in parameters]
     muscle_params = read_params(model_path, filename)
 
-    if plot_graphs:
+    if print_flag:
         # Plot for the identified torques
         rmse_values = []
         r2_values = []
@@ -432,7 +433,7 @@ def a_relation_ident(ocp_parameters,
                                                          angles=knee_angle,
                                                          degree=14,
                                                          positive_mode=True,
-                                                         print_flag=plot_graphs)
+                                                         print_flag=print_flag)
 
     # muscle_params[muscle][0] = get_coefficients_cubicspline(muscle, a_params, knee_angle, print_flag)
     if save_results:

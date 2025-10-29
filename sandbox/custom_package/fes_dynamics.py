@@ -533,8 +533,11 @@ class ParamIdentDynamics(CustomFesDynamics):
 
         t_phase = extra_params['t_phase']
         n_pulse_trunc = extra_params['n_pulse_trunc']
-        pd0 = extra_params['pd0']
-        pdt = extra_params['pdt']
+
+        # get pd0 pdt
+        a_coeff = extra_params['pd0pdt'][0]
+        pd0 = extra_params['pd0pdt'][1]
+        pdt = extra_params['pd0pdt'][2]
         # fes_min = extra_params['fes_min']
         muscle_params = extra_params['muscle_params']
 
@@ -554,7 +557,7 @@ class ParamIdentDynamics(CustomFesDynamics):
                 tau2 = nlp.parameters["tau_2_param"].cx
                 km = nlp.parameters["km_param"].cx
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
-            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
+            a_sc = a_scale * a_coeff * (1 - exp(-(pwd - pd0) / pdt))
             # 1 channel only
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
             alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
@@ -642,8 +645,10 @@ class ParamTau1IdentDynamics(CustomFesDynamics):
 
         t_phase = extra_params['t_phase']
         n_pulse_trunc = extra_params['n_pulse_trunc']
-        pd0 = extra_params['pd0']
-        pdt = extra_params['pdt']
+        # get pd0 pdt
+        a_coeff = extra_params['pd0pdt'][0]
+        pd0 = extra_params['pd0pdt'][1]
+        pdt = extra_params['pd0pdt'][2]
         # fes_min = extra_params['fes_min']
         muscle_params = extra_params['muscle_params']
 
@@ -744,8 +749,11 @@ class ParamPredictionDynamics(CustomFesDynamics):
 
         t_phase = extra_params['t_phase']
         n_pulse_trunc = extra_params['n_pulse_trunc']
-        pd0 = extra_params['pd0']
-        pdt = extra_params['pdt']
+        a_coeff = extra_params['pd0pdt'][0]
+        pd0 = extra_params['pd0pdt'][1]
+        pdt = extra_params['pd0pdt'][2]
+        # pd0 = extra_params['pd0']
+        # pdt = extra_params['pdt']
         # fes_min = extra_params['fes_min']
         muscle_params = extra_params['muscle_params']
 
@@ -770,7 +778,7 @@ class ParamPredictionDynamics(CustomFesDynamics):
             # 1 channel only
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
             alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
-            a_sc = a_scale * (1 - exp(-(pwd - pd0) / pdt))
+            a_sc = a_scale * a_coeff * (1 - exp(-(pwd - pd0) / pdt))
             alpha_dot = (alpha_temp - alpha) / t_phase
             sum_aux = 0
             for i in range(n_pulse_trunc):
