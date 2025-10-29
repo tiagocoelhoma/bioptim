@@ -865,8 +865,9 @@ class FESCyclingDynamics(CustomFesDynamics):
 
         t_phase = extra_params['t_phase']
         n_pulse_trunc = extra_params['n_pulse_trunc']
-        pd0 = extra_params['pd0']
-        pdt = extra_params['pdt']
+        pd0_pdt_data = extra_params['pd0_pdt_data']
+        # pd0 = extra_params['pd0']
+        # pdt = extra_params['pdt']
         joint_index = extra_params['joint_idx']
         muscle_params = extra_params['muscle_params']
 
@@ -884,6 +885,10 @@ class FESCyclingDynamics(CustomFesDynamics):
             tau2 = muscle_params[muscle][2]  # todo if i add tau_2 it does not converge
             km = muscle_params[muscle][3]
 
+            a_coeff = pd0_pdt_data[muscle][0]
+            pd0 = pd0_pdt_data[muscle][1]
+            pdt = pd0_pdt_data[muscle][2]
+
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd[m] - pd0)))
             alpha_temp = casadi.vertcat((a - 0.5) / 0.5, alpha[:n_pulse_trunc - 1])
@@ -894,7 +899,7 @@ class FESCyclingDynamics(CustomFesDynamics):
             a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
             # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
             # a_scale = casadi.if_else(a_scale > 20000, 20000, a_scale)
-            a_sc = a_scale * (1 - exp(-(pwd[m] - pd0) / pdt))
+            a_sc = a_scale * a_coeff * (1 - exp(-(pwd[m] - pd0) / pdt))
 
             sum_aux = 0
             for i in range(n_pulse_trunc):
