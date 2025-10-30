@@ -26,6 +26,7 @@ from bioptim import (
     ObjectiveList,
     ContactType, InitialGuessList,
 )
+from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.common.params_handler import load_pickle
 from sandbox.custom_package.fes_dynamics import calculate_friction_torque, CustomTorqueDynamics
 from sandbox.custom_package.fes_plotting import get_data, organize_data, unpack_sol
 
@@ -65,6 +66,10 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
     tau_gear.append(aux)
     q_data_aux_torque = organize_data(q_sol_torque, n_q)
     dq_data_aux_torque = organize_data(qdot_sol_torque, n_q)
+
+    filename = 'Param_iden_cycling_Brazil/opt_sol_results/pickles/pd0pdt_v2.pkl'
+    pd0_pdt_data = load_pickle(filename)
+    print(pd0_pdt_data)
 
     if set_gravity_to_zero:
         model.setGravity(np.array([0, 0, 0]))
@@ -146,7 +151,8 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
         # Usa diretamente os dados estendidos por músculo
         pw_data_stretched = pw_stretched[:, idx]
         # Define os pontos em que há ativação
-        activated_points = np.where(pw_data_stretched[:-5] > 250e-6)[0]
+        off_set = pd0_pdt_data[muscle_names[idx]][1] + 25e-6
+        activated_points = np.where(pw_data_stretched[:-5] > off_set)[0]
         if len(activated_points) > 0:
             axes[0].plot(q_radians[activated_points],
                          np.full_like(activated_points, radial_offsets[idx]),
