@@ -189,7 +189,7 @@ def main(save_data=False, print_flag=True):
         'bflh140_l':    "Param_iden_cycling_Brazil/data_exp/files/20250627_145728_1sr_iso_meas_HAM_L.txt",
     }
 
-    plt.figure(figsize=(8, 5))
+    plt.figure(figsize=(12, 7))
     muscles = sorted(set(data_file.keys()))
     colors = plt.cm.tab10(range(len(muscles)))
     style_map = {mus: (colors[i % len(colors)], markers[i % len(markers)]) for i, mus in enumerate(muscles)}
@@ -209,7 +209,7 @@ def main(save_data=False, print_flag=True):
         params, covariance = curve_fit(f=scaled_sigmoid_1,
                                        xdata=pw, ydata=torques,
                                        p0=[1, 86.906e-6, 138.441e-6],
-                                       bounds=([0, 0, 0], [100e3, 1e-3, 5e-3])  # Prevents unrealistic negative values
+                                       bounds=([0, 0, 0], [100, 1e-3, 5e-3])  # Prevents unrealistic negative values
                                        )
 
         a, pd0, pdt = float(params[0]), float(params[1]), float(params[2])
@@ -236,17 +236,18 @@ def main(save_data=False, print_flag=True):
             fitted_torque_filtered = scaled_sigmoid_1(pw_values_filtered, *params)
             print("Fitted Parameters 0:", params)
             plt.plot(pw_values_filtered, fitted_torque_filtered,
-                     label=f"{muscle_labels[0]}: $a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs",
+                     # label=f"{muscle_labels[0]}: $a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs",
                      color=colors[idx], linewidth=1, linestyle='dashed')
 
-            plt.scatter(pw, torques, color=colors[idx], marker=style_map[mus][-1], label=mus, alpha=0.8,
-                        edgecolors='black')
+            plt.scatter(pw, torques, color=colors[idx], marker=style_map[mus][-1],
+                        label=f"{muscle_labels[0]}: $a$={a:.2f}, $pd_0$={pd0 * 1e6:.1f} µs, $pd_t$={pdt * 1e6:.1f} µs",
+                        alpha=1.0, edgecolors='black')
 
-            plt.title("Normalized Max Torque vs Pulse Duration\nFitted Scaled Sigmoid Curve")
-            plt.xlabel("Pulse duration (s)")
-            plt.ylabel("Normalized Max Torque")
-            plt.legend(loc="upper left", fontsize="8", frameon=False)
-            plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/pd0pdt_v2.pdf', format='pdf', dpi=1600, bbox_inches='tight')
+            plt.title("Max Torque vs Pulse Duration")
+            plt.xlabel("Pulse duration (s)", fontsize="12")
+            plt.ylabel("Max Torque (Nm)", fontsize="12")
+            plt.legend(loc="upper left", fontsize="12", frameon=False)
+            plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/pd0pdt_v2.pdf', format='pdf', dpi=2200, bbox_inches='tight')
             plt.grid(False)
 
             plt.tight_layout()
