@@ -103,7 +103,7 @@ def prepare_ocp(
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e3)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.2)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.05)
     # if with_friction:
     #     objective_functions.add(
     #         FesObjective.custom_func_maximize_crank_power,
@@ -333,8 +333,8 @@ def main():
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)
 
-    ocp_2B_calculated = True
-    power_2B_calculated = True
+    ocp_2B_calculated = False
+    power_2B_calculated = False
 
     folder_path = 'Param_iden_cycling_Brazil/opt_sol_results/fes_leg_pedalling/'
     filename = f'friction_{round(phase_period * n_shooting, 2)}s_{n_shooting}n_{target_velocity_rpm}rpm_{target_power}W_fric_{friction_coef_mu}_{friction_coef_b}'
