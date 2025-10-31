@@ -159,11 +159,11 @@ def prepare_ocp(
     objective_functions.add(
         # ObjectiveFcn.Lagrange.TRACK_STATE,
         ObjectiveFcn.Mayer.TRACK_STATE,
-        node=Node.ALL_SHOOTING,
+        node=Node.ALL,
         key="qdot",
         index=idx_crank,
         target= target_velocity,
-        weight=1e2,
+        weight=1e3,
     )
 
     x_bounds = BoundsList()
