@@ -301,7 +301,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.2
+    friction_coef_mu=0.25
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
@@ -364,7 +364,7 @@ def main():
         # ocp.print(to_console=True, to_graph=False)
 
         # --- Solve the ocp --- #
-        solver = Solver.IPOPT(show_online_optim=True, _tol=1e-3)
+        solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
         solver.set_maximum_iterations(5000)
         sol = ocp.solve(solver=solver)
 
