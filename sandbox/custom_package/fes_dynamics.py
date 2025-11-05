@@ -25,7 +25,7 @@ from typing import Callable
 # pdt = 0.000138  # average value Ding 2007
 tauc = 0.011  # 11ms or 20ms?
 r0 = 5
-scaling_factor = 1e7  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
+scaling_factor = 1e6  # <- this impacts on the time to convergence. 1e5 faster but cn dynamics with slower slope
 
 
 def set_muscle_ascale(bio_model: BiorbdModel, value: MX):
@@ -132,7 +132,7 @@ class FESConfigureVariables(ConfigureVariables):
         """
 
         name_elements = []
-        n_pulse_trunc = 5   #extra_params['n_pulse_trunc'] Todo: pass this parameter automatically
+        n_pulse_trunc = 6   #extra_params['n_pulse_trunc'] Todo: pass this parameter automatically
         for i in range(n_pulse_trunc):
             name_elements.append(f'a{i + 1}')
         for i in range(nlp.model.nb_muscles):

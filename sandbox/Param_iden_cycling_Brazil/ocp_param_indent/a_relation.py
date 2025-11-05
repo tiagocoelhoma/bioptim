@@ -175,13 +175,21 @@ def prepare_ocp(
             weight=weight,
         )
 
-    constraints.add(ConstraintFcn.TRACK_STATE,
-                    key="qdot",
-                    node=Node.ALL,
-                    index=0,
-                    target=0,
-                    # weight=1e3,
-                    )
+    # constraints.add(ConstraintFcn.TRACK_STATE,
+    #                 key="qdot",
+    #                 node=Node.ALL,
+    #                 index=0,
+    #                 target=0,
+    #                 # weight=1e3,
+    #                 )
+    objective_functions.add(
+        ObjectiveFcn.Mayer.TRACK_STATE,
+        key="qdot",
+        index=0,
+        node=Node.ALL,
+        target=0,
+        weight=1e8,
+    )
 
     # Path constraint
     nb_tau = model.nb_tau

@@ -14,12 +14,19 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau2_km import tau2_km_i
 
 def get_initial_position():
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
-    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/cycling'
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/Fes_leg_pedalling'
     from sandbox.cycling_torque import main as main_torque
     if not os.path.isfile(dump_path):
         print(f"Initializing kinematics. If you have changed the biomechanical model, remember to update q_init !")
         biorbd_model_path = 'models/legcyc.bioMod'
-        q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
+        # q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
+        # q_init = np.array([[-6.3003], [4.9974], [1.9865], [0.1753], [5.5781], [1.0031], [0.5679]])
+        # q_init = np.array([[-6.3003], [4.956], [2.1215], [0.3629], [5.4744], [1.242], [0.7569]])  # good convergence for trque
+        # q_init = np.array([[-6.3003], [4.9352], [2.1458], [0.3629], [5.4536], [1.2742], [0.7569]])
+        # q_init = np.array([[-6.3003], [4.873], [2.1091], [0.508], [5.4329], [1.2191], [0.8191]])
+        # q_init = np.array([[-6.3003], [4.8938], [2.1183], [0.591], [5.4536], [1.2053], [0.7983]])
+        q_init = np.array([[-6.3003], [4.9352], [2.1183], [0.6117], [5.4744], [1.2053], [0.9228]])
+
         main_torque(biorbd_model_path, dump_path, q_init)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
@@ -30,7 +37,7 @@ def get_initial_position():
 # constant parameters
 stim_freq = 35                          # stimulation frequency in Hertz
 t_duration = round(1 / stim_freq, 6)    # duration of a stimulation pulse
-n_window = 5
+n_window = 6
 window_size = 10                        # window sized used for filtering torque data
 offset_interval = 10                    # torque data that will be used prior to the start of the contraction
 with_residual_torque = False
@@ -45,8 +52,8 @@ def main():
         # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
         # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]],
         # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
-        ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
-        # ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
+        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
+        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
 
@@ -146,8 +153,8 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        tau1_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
-        tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # tau1_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
         prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)

@@ -30,7 +30,7 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -10*pi 10*pi
+		        -10*pi 0*pi
 	endsegment
 	segment distance
 	    parent ground
@@ -65,7 +65,7 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -10*pi 10*pi
+		        -4*pi 4*pi
 	endsegment
 	segment Right_Foot_Support
 		parent pedal_r
@@ -216,7 +216,7 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -10*pi 10*pi
+		        -4*pi 4*pi
 	endsegment
 	segment Left_Foot_Support
 		parent pedal_l
@@ -403,7 +403,7 @@ version 4
 		//OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
 		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
 		optimalLength	    0.13287389999999999
-		maximalForce	    1169
+		maximalForce	    100000 //1169
 		tendonSlackLength	0.36132376999999999
 		pennationAngle	    0.087266460000000004
 		maxVelocity	        10
@@ -444,7 +444,7 @@ version 4
 		OriginPosition	0.0128045 -0.25313999999999998 0.017194600000000001
 		InsertionPosition	0.0293478 -0.062145699999999998 -0.0062375599999999996
 		optimalLength	0.124938355693892
-		maximalForce	2747.82295081966
+		maximalForce	100000 //2747.82295081966
 		tendonSlackLength	0.23624707258481401
 		pennationAngle	0.42222252999999998
 		a_scale         1721
@@ -480,7 +480,7 @@ version 4
 		//InsertionPosition	-0.024876700000000002 -0.048957899999999999 0.0031979
 		InsertionPosition	-0.024876700000000002 -0.038957899999999999 0.0031979
 		optimalLength	0.115637614434919
-		maximalForce	1313.18360655738
+		maximalForce	100000 //1313.18360655738
 		tendonSlackLength	0.39394986475011001
 		pennationAngle	0.17591823000000001
 		a_scale         1721
@@ -510,7 +510,7 @@ version 4
 		//OriginPosition	-0.021948700000000002 -0.043396700000000003 -0.12174599999999999
 		InsertionPosition	0.031376000000000001 -0.0620987 0.00045235300000000001
 		optimalLength	    0.13287389999999999
-		maximalForce	    1169
+		maximalForce	    100000 //1169
 		tendonSlackLength	0.36132376999999999
 		pennationAngle	    0.087266460000000004
 		maxVelocity	        10
@@ -551,7 +551,7 @@ version 4
 		OriginPosition	0.0120535 -0.25169200000000003 -0.016186099999999998
 		InsertionPosition	0.030702299999999998 -0.062541399999999997 0.0065254400000000004
 		optimalLength	0.12398868931290701
-		maximalForce	2747.82295081966
+		maximalForce	100000 //2747.82295081966
 		tendonSlackLength	0.23445133979167901
 		pennationAngle	0.42222252999999998
 		a_scale         1721
@@ -588,7 +588,7 @@ version 4
 		// InsertionPosition	-0.026024700000000001 -0.0492697 -0.033454900000000003
 		InsertionPosition	-0.024876700000000002 -0.038957899999999999 0.0031979
 		optimalLength	0.115637614434919
-		maximalForce	1313.18360655738
+		maximalForce	100000 //1313.18360655738
 		tendonSlackLength	0.39394986475011001
 		pennationAngle	0.17591823000000001
 		a_scale         1721

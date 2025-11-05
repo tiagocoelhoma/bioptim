@@ -99,11 +99,11 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.02)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.005)
     # if with_friction:
     #     objective_functions.add(
     #         FesObjective.custom_func_maximize_crank_power,
@@ -116,53 +116,53 @@ def prepare_ocp(
     #         **extra_params,
     #     )
 
-    if 'rect_fem_r' in muscles:
-        objective_functions.add(
-            FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
-            target=0,
-            mus_num_1=muscles.index('rect_fem_r'),
-            mus_num_2=muscles.index('rect_fem_l'),
-            pw_offset=fes_min,
-            quadratic=True,
-            weight=1e2,
-        )
-    if 'vasmed_r' in muscles:
-        objective_functions.add(
-            FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
-            target=0,
-            mus_num_1=muscles.index('vasmed_r'),
-            mus_num_2=muscles.index('vasmed_l'),
-            pw_offset=fes_min,
-            quadratic=True,
-            weight=1e2,
-        )
-    if 'bflh140_r' in muscles:
-        objective_functions.add(
-            FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
-            target=0,
-            mus_num_1=muscles.index('bflh140_r'),
-            mus_num_2=muscles.index('bflh140_l'),
-            pw_offset=fes_min,
-            quadratic=True,
-            weight=1e3,
-        )
+    # if 'rect_fem_r' in muscles:
+    #     objective_functions.add(
+    #         FesObjective.custom_func_minimize_cocontraction,
+    #         custom_type=ObjectiveFcn.Lagrange,
+    #         # custom_type=ObjectiveFcn.Mayer,
+    #         # node=Node.ALL,
+    #         target=0,
+    #         mus_num_1=muscles.index('rect_fem_r'),
+    #         mus_num_2=muscles.index('rect_fem_l'),
+    #         pw_offset=fes_min,
+    #         quadratic=True,
+    #         weight=1e2,
+    #     )
+    # if 'vasmed_r' in muscles:
+    #     objective_functions.add(
+    #         FesObjective.custom_func_minimize_cocontraction,
+    #         custom_type=ObjectiveFcn.Lagrange,
+    #         # custom_type=ObjectiveFcn.Mayer,
+    #         # node=Node.ALL,
+    #         target=0,
+    #         mus_num_1=muscles.index('vasmed_r'),
+    #         mus_num_2=muscles.index('vasmed_l'),
+    #         pw_offset=fes_min,
+    #         quadratic=True,
+    #         weight=1e2,
+    #     )
+    # if 'bflh140_r' in muscles:
+    #     objective_functions.add(
+    #         FesObjective.custom_func_minimize_cocontraction,
+    #         custom_type=ObjectiveFcn.Lagrange,
+    #         # custom_type=ObjectiveFcn.Mayer,
+    #         # node=Node.ALL,
+    #         target=0,
+    #         mus_num_1=muscles.index('bflh140_r'),
+    #         mus_num_2=muscles.index('bflh140_l'),
+    #         pw_offset=fes_min,
+    #         quadratic=True,
+    #         weight=1e2,
+    #     )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
-        # ObjectiveFcn.Lagrange.TRACK_STATE,
-        ObjectiveFcn.Mayer.TRACK_STATE,
-        node=Node.ALL,
+        ObjectiveFcn.Lagrange.TRACK_STATE,
+        # ObjectiveFcn.Mayer.TRACK_STATE,
+        # node=Node.ALL,
         key="qdot",
         index=idx_crank,
-        target= target_velocity,
+        target= round(target_velocity, 2),
         weight=1e3,
     )
 
@@ -187,7 +187,7 @@ def prepare_ocp(
         x_bounds[f"alpha_{m}"][:, [0]] = alpha_init
     # set to a steady position in the beginning with no forces (starting node @ phase 0)
     x_bounds["f"][:, [0]] = 0
-    x_bounds["cn"][:, [0]] = 0
+    # x_bounds["cn"][:, [0]] = 0
 
     u_bounds = BoundsList()
     # gear, pedal_r, pedal_l, knee_r, knee_l, hip_r, hip_l
@@ -206,6 +206,8 @@ def prepare_ocp(
     u_bounds.add("pw",
                  min_bound=fes_min,
                  max_bound=[fes_max] * model.nb_muscles)
+    # u_bounds["pw"].max[:, [0]] = u_bounds["pw"].min[:, [0]]
+
     x_init = InitialGuessList()
     x_init.add('q', q_init[:, :n_shooting+1], InterpolationType.EACH_FRAME)
     x_init.add('qdot', dq_init[:, :n_shooting+1], InterpolationType.EACH_FRAME)
@@ -215,6 +217,13 @@ def prepare_ocp(
     u_init = InitialGuessList()
     u_scaling = VariableScalingList()
     u_scaling["pw"] = [fes_max] * model.nb_muscles
+    if with_torque:
+        u_scaling["tau"] = [max_joint_torque] * model.nb_dof
+
+    x_scaling = VariableScalingList()
+    x_scaling.add("f", [f_max] * model.nb_muscles)
+    x_scaling.add("cn", [cn_max] * model.nb_muscles)
+    # x_scaling.add("qdot", scaling=[1] * bio_model.nb_qdot)
 
     return OptimalControlProgram(
         model,
@@ -227,6 +236,7 @@ def prepare_ocp(
         u_init=u_init,
         objective_functions=objective_functions,
         u_scaling=u_scaling,
+        x_scaling=x_scaling,
         use_sx=False,
         n_threads=n_threads,
     )
@@ -238,15 +248,24 @@ def find_nearest(q_pos, value, idx_dof=0):
     return idx
 
 
-def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=80):
+def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4, crank_angle=60):
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
     dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/Fes_leg_pedalling'
 
     from sandbox.cycling_torque import main as main_torque
     if not os.path.isfile(dump_path):
         print(f"Initializing kinematics. Remember to update this file when the biomechanical model changes!")
+        print(f"DID YOU SET KNEE RANGES TO THE CORRECT VALUES ?!")
         q_init = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
-        main_torque(biorbd_model_path, dump_path, q_init)
+        # q_init = np.array([[-6.3003], [4.9974], [1.9865], [0.1753], [5.5781], [1.0031], [0.5679]])
+        # q_init = np.array([[-6.3003], [4.9974], [1.9865], [0.1753], [5.5781], [1.0031], [0.591]])
+        # q_init = np.array([[-6.3003], [4.956], [2.1215], [0.3629], [5.4744], [1.242], [0.7776]])
+        q_init = np.array([[-6.3003], [4.8938], [2.1183], [0.591], [5.4536], [1.2053], [0.7983]])
+        # q_init = np.array([[-6.346525958295362], [4.950820438216219], [2.1207890966054195], [0.5777164234736845], [5.493292388687205], [1.2025846965092486], [0.8075488730990125]])
+        q_init = np.array([[-6.3003], [4.8938], [2.1304], [0.6117], [5.4329], [1.2525], [0.9642]])
+        q_init = np.array([[-6.3003], [4.9352], [2.1183], [0.6117], [5.4744], [1.2053], [0.9228]])
+
+        main_torque(biorbd_model_path, dump_path, q_init, target_v)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
     dqvec = np.array(unpack_sol(sol_dict["qdot"])).T
@@ -254,6 +273,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
     model = BiorbdModel(biorbd_model_path)
     # index = [s.to_string() for s in model.name_dof()].index('knee_r_RotZ')
     index = model.name_dof.index('knee_r_RotZ')
+    # idx = find_nearest(qvec[:, 0:-1],
     idx = find_nearest(qvec[:, 0:25],
                          value=-((crank_angle / 180) * np.pi),
                          idx_dof=0)
@@ -263,13 +283,13 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', crank_angle=8
 
 
 # PROBLEM PARAMETERS
-f_min, f_max, f_init = 0, 10000, 0
-cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
+f_min, f_max, f_init = 0, 5000, 0
+cn_min, cn_max, cn_init = -1.0, 2.0, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 fes_max = 1600e-6
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 stim_freq = 35  # stimulation frequency in Hertz
-n_pulse_trunc = 5
+n_pulse_trunc = 6
 phase_period = round(1 / stim_freq, 3)
 
 
@@ -301,7 +321,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.3
+    friction_coef_mu=0.2
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
@@ -310,7 +330,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 70
+    n_shooting = 35
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
@@ -326,9 +346,11 @@ def main():
 
     # Plotting the A function, because if its results extrapolate beyond realistic values,
     # it is highly likely to cause problems.
-    q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path, crank_angle=50)
+    q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path,
+                                                            target_v,
+                                                            crank_angle=150)
 
-    print_flag = False
+    print_flag = True
     if print_flag:
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)
@@ -375,7 +397,7 @@ def main():
 
         # --- Animation --- #
         # not implemented yet
-        # sol.animate()
+        sol.animate()
 
         # save data
         states = sol.stepwise_states()

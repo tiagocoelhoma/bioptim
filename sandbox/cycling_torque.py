@@ -33,7 +33,8 @@ def prepare_ocp(
         final_time: float,
         q_init: list,
         max_joint_torque: float,
-        ode_solver: OdeSolverBase = OdeSolver.RK4(),
+        target_velocity: float,
+        ode_solver: OdeSolverBase = OdeSolver.RK2(),
         phase_dynamics: PhaseDynamics = PhaseDynamics.SHARED_DURING_THE_PHASE,
         expand_dynamics: bool = True,
 ) -> OptimalControlProgram:
@@ -70,14 +71,14 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=100)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="tau", weight=1)
     objective_functions.add(
         ObjectiveFcn.Mayer.TRACK_STATE,
         key="qdot",
         index=0,
         node=Node.ALL,
-        target=-4,
-        weight=1e3,
+        target=target_velocity,
+        weight=1e4,
     )
 
     # DynamicsOptions
@@ -119,16 +120,19 @@ def main(
         biorbd_model_path: str = "models/legcyc.bioMod",
         dump_path: str = "opt_sol_results/kinematics/cycling",
         q_init: np.array = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]),
+        target_v=-4.4,
 ):
     """
     Runs and animate the program
     """
+
     ocp = prepare_ocp(
         biorbd_model_path=biorbd_model_path,
-        n_shooting=140,
-        final_time=2.5,
+        n_shooting=68,
+        final_time=1.5,
         q_init=q_init,
-        max_joint_torque=50,
+        max_joint_torque=100,
+        target_velocity=target_v,
     )
 
     # --- Solve the program --- #
@@ -160,6 +164,9 @@ def main(
         "n_iterations": n_iterations,
         "final_time": final_time,
     }
+
+    sol.graphs()
+    sol.animate()
 
     with open(dump_path, "wb") as file:
         del sol.ocp
