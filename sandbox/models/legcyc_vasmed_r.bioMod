@@ -30,7 +30,7 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -10*pi 10*pi
+		        -10*pi 1*pi
 	endsegment
 	segment distance
 	    parent ground
@@ -476,7 +476,7 @@ version 4
 		OriginPosition	0.0128045 -0.25313999999999998 0.017194600000000001
 		InsertionPosition	0.0293478 -0.062145699999999998 -0.0062375599999999996
 		optimalLength	0.124938355693892
-		maximalForce	2747.82295081966
+		maximalForce	100000 //2747.82295081966
 		tendonSlackLength	0.23624707258481401
 		pennationAngle	0.42222252999999998
 		a_scale         1721

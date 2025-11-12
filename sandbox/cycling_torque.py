@@ -119,8 +119,10 @@ def prepare_ocp(
 def main(
         biorbd_model_path: str = "models/legcyc.bioMod",
         dump_path: str = "opt_sol_results/kinematics/cycling",
-        q_init: np.array = np.array([[-6.3003], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]),
+        q_init: np.array = np.array([[-0.1055], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]),
         target_v=-4.4,
+        n_shooting=140,
+        final_time=2.5,
 ):
     """
     Runs and animate the program
@@ -128,8 +130,8 @@ def main(
 
     ocp = prepare_ocp(
         biorbd_model_path=biorbd_model_path,
-        n_shooting=68,
-        final_time=1.5,
+        n_shooting=n_shooting,
+        final_time=final_time,
         q_init=q_init,
         max_joint_torque=100,
         target_velocity=target_v,

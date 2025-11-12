@@ -774,6 +774,8 @@ class ParamPredictionDynamics(CustomFesDynamics):
             # x = 1.6009166
             knee_angle = extra_params['knee_angle']
             a_scale = (sum(c * knee_angle ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
+            # a_scale = sum(c * knee_angle ** (len(coef) - 1 - i) for i, c in enumerate(coef))
+            # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
             alpha = DynamicsFunctions.get(nlp.states[f"alpha_{m}"], states)
             # 1 channel only
             a = 1.0 / (1.0 + exp(-scaling_factor * (pwd - pd0)))
@@ -897,9 +899,11 @@ class FESCyclingDynamics(CustomFesDynamics):
             # x = MX(1.76)
             # todo attention to these coefficients. May extrapolate realistic values!
             a_scale = (sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))) ** 2
+            # a_scale = sum(c * x ** (len(coef) - 1 - i) for i, c in enumerate(coef))
             # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
             # a_scale = casadi.if_else(a_scale > 20000, 20000, a_scale)
             a_sc = a_scale * a_coeff * (1 - exp(-(pwd[m] - pd0) / pdt))
+            # a_sc = casadi.if_else(a_sc > 0, a_sc, 0)
 
             sum_aux = 0
             for i in range(n_pulse_trunc):

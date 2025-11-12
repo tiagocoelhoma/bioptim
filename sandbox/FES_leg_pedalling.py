@@ -99,11 +99,11 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e6)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e4)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.005)
+    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.02)
     # if with_friction:
     #     objective_functions.add(
     #         FesObjective.custom_func_maximize_crank_power,
@@ -116,19 +116,25 @@ def prepare_ocp(
     #         **extra_params,
     #     )
 
-    # if 'rect_fem_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('rect_fem_r'),
-    #         mus_num_2=muscles.index('rect_fem_l'),
-    #         pw_offset=fes_min,
-    #         quadratic=True,
-    #         weight=1e1,
-    #     )
+    # ('rect_fem_r', 'bflh140_r', 'vasmed_r', 'rect_fem_l', 'bflh140_l', 'vasmed_l')
+    fes_min = []
+    for mus, mus_name in enumerate(muscles):
+        fes_min.append(extra_params['pd0_pdt_data'][mus_name][1])   # a, pd0 (should be used as fes_min), pdt
+        # fes_min.append(0e-6)  # a, pd0 (should be used as fes_min), pdt
+    # fes_min = 300e-6
+    if 'rect_fem_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('rect_fem_r'),
+            mus_num_2=muscles.index('rect_fem_l'),
+            pw_offset=fes_min,    # todo this is wrong
+            quadratic=True,
+            weight=1e2,
+        )
     # if 'vasmed_r' in muscles:
     #     objective_functions.add(
     #         FesObjective.custom_func_minimize_cocontraction,
@@ -140,7 +146,7 @@ def prepare_ocp(
     #         mus_num_2=muscles.index('vasmed_l'),
     #         pw_offset=fes_min,
     #         quadratic=True,
-    #         weight=1e1,
+    #         weight=1e2,
     #     )
     # if 'bflh140_r' in muscles:
     #     objective_functions.add(
@@ -153,7 +159,7 @@ def prepare_ocp(
     #         mus_num_2=muscles.index('bflh140_l'),
     #         pw_offset=fes_min,
     #         quadratic=True,
-    #         weight=1e1,
+    #         weight=1e3,
     #     )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -199,10 +205,6 @@ def prepare_ocp(
         u_bounds["tau"].min[:, :] = 0
         u_bounds["tau"].max[:, :] = 0
         u_bounds["tau"].min[[0], [0]] = -max_joint_torque
-
-    fes_min = []
-    for mus, mus_name in enumerate(muscles):
-        fes_min.append(extra_params['pd0_pdt_data'][mus_name][1])   # a, pd0 (should be used as fes_min), pdt
     u_bounds.add("pw",
                  min_bound=fes_min,
                  max_bound=[fes_max] * model.nb_muscles)
@@ -220,8 +222,8 @@ def prepare_ocp(
     if with_torque:
         u_scaling["tau"] = [max_joint_torque] * model.nb_dof
 
-    x_scaling = VariableScalingList()
-    x_scaling.add("f", [f_max] * model.nb_muscles)
+    # x_scaling = VariableScalingList()
+    # x_scaling.add("f", [f_max] * model.nb_muscles)
     # x_scaling.add("cn", [cn_max] * model.nb_muscles)
     # x_scaling.add("qdot", scaling=[1] * bio_model.nb_qdot)
 
@@ -236,7 +238,7 @@ def prepare_ocp(
         u_init=u_init,
         objective_functions=objective_functions,
         u_scaling=u_scaling,
-        x_scaling=x_scaling,
+        # x_scaling=x_scaling,
         use_sx=False,
         n_threads=n_threads,
     )
@@ -264,8 +266,10 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
         # q_init = np.array([[-6.346525958295362], [4.950820438216219], [2.1207890966054195], [0.5777164234736845], [5.493292388687205], [1.2025846965092486], [0.8075488730990125]])
         q_init = np.array([[-6.3003], [4.8938], [2.1304], [0.6117], [5.4329], [1.2525], [0.9642]])
         q_init = np.array([[-6.3003], [4.9352], [2.1183], [0.6117], [5.4744], [1.2053], [0.9228]])
+        q_init = np.array([[-0.0104], [4.9974], [2.137], [0.3421], [5.5159], [1.2327], [0.6947]])
+        q_init = np.array([[-0.0104], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])
 
-        main_torque(biorbd_model_path, dump_path, q_init, target_v)
+        main_torque(biorbd_model_path, dump_path, q_init, target_v, n_shooting=140, final_time=2.5)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
     dqvec = np.array(unpack_sol(sol_dict["qdot"])).T
@@ -283,7 +287,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
 
 
 # PROBLEM PARAMETERS
-f_min, f_max, f_init = 0, 5000, 0
+f_min, f_max, f_init = 0, 10000, 0
 cn_min, cn_max, cn_init = -1.0, 2.0, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 fes_max = 1600e-6
@@ -330,7 +334,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 35
+    n_shooting = 60
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,

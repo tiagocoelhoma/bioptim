@@ -325,10 +325,10 @@ def tau1_ident(ocp_parameters,
                 plt.figure()
                 plt.plot(tau, label='Torque total')
                 plt.axvline(off_idx, color='r', linestyle='--', label='stim off')
-                plt.axhline(tau_50, color='orange', linestyle=':', label='50%')
+                plt.axhline(tau_50, color='orange', linestyle=':', label='70%')
                 plt.axhline(tau_25, color='green', linestyle=':', label='25%')
                 plt.plot(np.arange(off_idx + start_idx, off_idx + end_idx), decay_segment, 'k', linewidth=2,
-                         label='Trecho 50–25%')
+                         label='Interval 75–25%')
                 plt.title(f"Curva {i} - Decaimento torque")
                 plt.legend()
                 plt.show()

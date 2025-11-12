@@ -14,7 +14,8 @@ from sandbox.Param_iden_cycling_Brazil.ocp_param_indent.tau2_km import tau2_km_i
 
 def get_initial_position():
     # dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/fw_rotation_{duration}_{nb_shooting}_{target_vel}'  # cycling kinematics
-    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/Fes_leg_pedalling'
+    # the kinematics for only one cycle is important for the identification process to get one position of the crank
+    dump_path = f'Param_iden_cycling_Brazil/opt_sol_results/kinematics/kinematics_one_cycle_only'
     from sandbox.cycling_torque import main as main_torque
     if not os.path.isfile(dump_path):
         print(f"Initializing kinematics. If you have changed the biomechanical model, remember to update q_init !")
@@ -26,8 +27,18 @@ def get_initial_position():
         # q_init = np.array([[-6.3003], [4.873], [2.1091], [0.508], [5.4329], [1.2191], [0.8191]])
         # q_init = np.array([[-6.3003], [4.8938], [2.1183], [0.591], [5.4536], [1.2053], [0.7983]])
         q_init = np.array([[-6.3003], [4.9352], [2.1183], [0.6117], [5.4744], [1.2053], [0.9228]])
+        q_init = np.array([[-0.1055], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]) # negative torque first stim 06/11/2025
+        q_init = np.array([[-0.1055], [4.9974], [2.1304], [0.3421], [5.5159], [1.2261], [0.6947]])
+        q_init = np.array([[-0.1055], [5.0389], [2.1304], [0.3421], [5.5366], [1.2261], [0.6947]])
+        q_init = np.array([[-0.0104], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])# negative torque first stim 06/11/2025
+        # q_init = np.array([[-0.0422], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]) # negative torque first stim 06/11/2025
+        # q_init = np.array([[-0.1476], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]]) # negative torque first stim 06/11/2025
+        q_init = np.array([[-0.0104], [4.9974], [2.137], [0.3421], [5.5159], [1.2327], [0.6947]])
+        q_init = np.array([[-0.0104], [4.8938], [2.137], [0.3421], [5.4329], [1.2525], [0.6947]])
+        q_init = np.array([[-0.0104], [4.956], [2.1172], [0.3629], [5.4951], [1.2063], [0.6947]])
+        q_init = np.array([[-0.0104], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])
 
-        main_torque(biorbd_model_path, dump_path, q_init)
+        main_torque(biorbd_model_path, dump_path, q_init, n_shooting=64, final_time=1.5)
     sol_dict = pickle.load(open(dump_path, 'rb'))
     qvec = np.array(unpack_sol(sol_dict["q"])).T
 
@@ -48,16 +59,16 @@ def main():
     # PROBLEM PARAMETERS TO BE SET EACH TIME
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
-        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [0, -1]],
-        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [0, -1]],
-        # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [0, -1]],
-        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [0, -1]],
-        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [0, -1]],
-        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [0, -1]]
+        # ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [1, -1]],
+        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [1, -1]],
+        # ["models/legcyc_hams_r.bioMod", 'bflh140_r', [1, -1]],
+        ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [1, -1]],
+        ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [1, -1]],
+        ["models/legcyc_hams_r.bioMod", 'bflh140_l', [1, -1]]
     ]
     muscle_params_file = f'Param_iden_cycling_Brazil/opt_sol_results/pickles/cycling_muscles_params.pkl'
 
-    save_results = True         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
+    save_results = False         # ATTENTION! Use TRUE onlu if you want to save the identified parameters on the file.
     print_flag = True           # if one wants to have an additional visualization of the torque information
     plot_graphs = False         # for an additional visualization of the OCP resulting plots
     show_animate = False        # for an additional visualization of the OCP resulting animation
@@ -153,11 +164,11 @@ def main():
         }
 
         # --- Prepare the optimal control program for identification of tau1, tau2 and km parameters --- #
-        # tau1_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # tau1_ident(ocp_parameters, problem_params, muscle_params_file, save_results, print_flag, show_animate)
         # tau2_km_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         a_relation_ident(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate, print_flag)
         # copy_params_right_to_left(model_path, muscle_params_file, option=1) #option 1 right to left. option 2 left to right
-        prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
+        # prediction(ocp_parameters, problem_params, muscle_params_file, save_results, plot_graphs, show_animate)
         # statistic_plots(muscle)
     print(f'\nFinal parameters are: {load_pickle(muscle_params_file)}')
 

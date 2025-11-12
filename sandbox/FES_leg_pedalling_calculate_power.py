@@ -151,7 +151,7 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
         # Usa diretamente os dados estendidos por músculo
         pw_data_stretched = pw_stretched[:, idx]
         # Define os pontos em que há ativação
-        off_set = pd0_pdt_data[muscle_names[idx]][1] + 0.1e-6
+        off_set = pd0_pdt_data[muscle_names[idx]][1] + 50e-6
         activated_points = np.where(pw_data_stretched[:-5] > off_set)[0]
         if len(activated_points) > 0:
             axes[0].plot(q_radians[activated_points],

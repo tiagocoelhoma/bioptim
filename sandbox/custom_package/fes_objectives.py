@@ -104,7 +104,7 @@ class FesObjective():
         return ca.power(crank_vel, 2) * friction_coef_b
 
 
-    def custom_func_minimize_cocontraction(controller: PenaltyController, mus_num_1: int, mus_num_2: int, pw_offset: float) -> MX:
+    def custom_func_minimize_cocontraction(controller: PenaltyController, mus_num_1: int, mus_num_2: int, pw_offset: list) -> MX:
         activations = controller.controls["pw"].cx - pw_offset
         return activations[mus_num_1] * activations[mus_num_2]
 

@@ -30,7 +30,7 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -10*pi 0*pi
+		        -10*pi 10*pi
 	endsegment
 	segment distance
 	    parent ground
@@ -65,7 +65,8 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -4*pi 4*pi
+		        //1*pi 2*pi
+		        -10*pi 10*pi
 	endsegment
 	segment Right_Foot_Support
 		parent pedal_r
@@ -216,7 +217,8 @@ version 4
 		meshscale	1 1 1
 		rotations z
 		ranges
-		        -4*pi 4*pi
+		        //1*pi 2*pi
+		        -10*pi 10*pi
 	endsegment
 	segment Left_Foot_Support
 		parent pedal_l
@@ -397,8 +399,8 @@ version 4
 		statetype	        degroote
 		musclegroup	        pelvis_to_tibia_r
 		//OriginPosition	    -0.030856600000000001 -0.082530200000000002 0.10125099999999999
-		OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999 //works
-		//OriginPosition	    -0.030856600000000001 -0.088530200000000002 0.10125099999999999 //works
+		//OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999 //works
+		OriginPosition	    -0.030856600000000001 -0.088530200000000002 0.10125099999999999 //works
 		//InsertionPosition   0.0342039 -0.0662255 0.000493124
 		//OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
 		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
@@ -477,8 +479,8 @@ version 4
 		statetype	degroote
 		musclegroup	pelvis_to_tibia_r
 		OriginPosition	-0.095110899999999998 -0.13321 0.076466699999999999
-		//InsertionPosition	-0.024876700000000002 -0.048957899999999999 0.0031979
-		InsertionPosition	-0.024876700000000002 -0.038957899999999999 0.0031979
+		InsertionPosition	-0.024876700000000002 -0.048957899999999999 0.0031979
+		//InsertionPosition	-0.024876700000000002 -0.038957899999999999 0.0031979
 		optimalLength	0.115637614434919
 		maximalForce	100000 //1313.18360655738
 		tendonSlackLength	0.39394986475011001
@@ -504,11 +506,12 @@ version 4
 		type	            hilldegroote
 		statetype	        degroote
 		musclegroup	        pelvis_to_tibia_l
-		OriginPosition	    -0.030856600000000001 -0.098530200000000002 -0.10125099999999999 //works
+		OriginPosition	    -0.030856600000000001 -0.088530200000000002 -0.10125099999999999 //works
 		//OriginPosition	    -0.030856600000000001 -0.032530200000000002 -0.10125099999999999
 		//InsertionPosition   0.0342039 -0.0662255 0.000493124
 		//OriginPosition	-0.021948700000000002 -0.043396700000000003 -0.12174599999999999
-		InsertionPosition	0.031376000000000001 -0.0620987 0.00045235300000000001
+		//InsertionPosition	0.031376000000000001 -0.0620987 0.00045235300000000001
+		InsertionPosition	0.029991799999999999 -0.061705700000000002 0.000432397
 		optimalLength	    0.13287389999999999
 		maximalForce	    100000 //1169
 		tendonSlackLength	0.36132376999999999
@@ -548,11 +551,11 @@ version 4
 		type	hilldegroote
 		statetype	degroote
 		musclegroup	femur_l_to_tibia_l
-		OriginPosition	0.0120535 -0.25169200000000003 -0.016186099999999998
-		InsertionPosition	0.030702299999999998 -0.062541399999999997 0.0065254400000000004
-		optimalLength	0.12398868931290701
+		OriginPosition	0.0128045 -0.25313999999999998 -0.017194600000000001
+		InsertionPosition	0.0293478 -0.062145699999999998 0.0062375599999999996
+		optimalLength	0.124938355693892
 		maximalForce	100000 //2747.82295081966
-		tendonSlackLength	0.23445133979167901
+		tendonSlackLength	0.23624707258481401
 		pennationAngle	0.42222252999999998
 		a_scale         1721
 		ding_tau_1      0.055
@@ -563,13 +566,13 @@ version 4
 			parent	femur_l
 			muscle	vasmed_l
 			musclegroup	femur_l_to_tibia_l
-			position	0.030650400000000001 -0.33203199999999999 -0.00077486899999999997
+			position	0.032559999999999999 -0.33394200000000002 -0.00082314699999999998
 		endviapoint
 		viapoint	vasmed_l-P3
 			parent	patella_l
 			muscle	vasmed_l
 			musclegroup	femur_l_to_tibia_l
-			position	0.0057620299999999996 0.053360100000000001 0.015548299999999999
+			position	0.0057620299999999996 0.053667100000000002 0.015548299999999999
 		endviapoint
 		viapoint	vasmed_l-P4
 			parent	patella_l
