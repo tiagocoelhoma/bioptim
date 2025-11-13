@@ -101,7 +101,7 @@ def prepare_ocp(
     objective_functions = ObjectiveList()
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e6)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.005)
     # if with_friction:
@@ -148,19 +148,19 @@ def prepare_ocp(
             quadratic=True,
             weight=1e2,
         )
-    # if 'bflh140_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('bflh140_r'),
-    #         mus_num_2=muscles.index('bflh140_l'),
-    #         pw_offset=fes_min,
-    #         quadratic=True,
-    #         weight=1e3,
-    #     )
+    if 'bflh140_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('bflh140_r'),
+            mus_num_2=muscles.index('bflh140_l'),
+            pw_offset=fes_min,
+            quadratic=True,
+            weight=1e1,
+        )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
         ObjectiveFcn.Lagrange.TRACK_STATE,
@@ -327,7 +327,7 @@ def main():
     friction_coef_b=0.78
     friction_coef_mu=0.2
     target_velocity_rpm=41.92
-    target_power=20.0
+    target_power=25.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)
@@ -352,7 +352,7 @@ def main():
     # it is highly likely to cause problems.
     q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path,
                                                             target_v,
-                                                            crank_angle=150)
+                                                            crank_angle=100)
     print_flag = False
     if print_flag:
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
