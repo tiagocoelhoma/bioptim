@@ -131,23 +131,23 @@ def prepare_ocp(
             target=0,
             mus_num_1=muscles.index('rect_fem_r'),
             mus_num_2=muscles.index('rect_fem_l'),
-            pw_offset=fes_min,    # todo this is wrong
+            pw_offset=fes_min,
             quadratic=True,
             weight=1e2,
         )
-    # if 'vasmed_r' in muscles:
-    #     objective_functions.add(
-    #         FesObjective.custom_func_minimize_cocontraction,
-    #         custom_type=ObjectiveFcn.Lagrange,
-    #         # custom_type=ObjectiveFcn.Mayer,
-    #         # node=Node.ALL,
-    #         target=0,
-    #         mus_num_1=muscles.index('vasmed_r'),
-    #         mus_num_2=muscles.index('vasmed_l'),
-    #         pw_offset=fes_min,
-    #         quadratic=True,
-    #         weight=1e2,
-    #     )
+    if 'vasmed_r' in muscles:
+        objective_functions.add(
+            FesObjective.custom_func_minimize_cocontraction,
+            custom_type=ObjectiveFcn.Lagrange,
+            # custom_type=ObjectiveFcn.Mayer,
+            # node=Node.ALL,
+            target=0,
+            mus_num_1=muscles.index('vasmed_r'),
+            mus_num_2=muscles.index('vasmed_l'),
+            pw_offset=fes_min,
+            quadratic=True,
+            weight=1e2,
+        )
     # if 'bflh140_r' in muscles:
     #     objective_functions.add(
     #         FesObjective.custom_func_minimize_cocontraction,
@@ -193,7 +193,7 @@ def prepare_ocp(
         x_bounds[f"alpha_{m}"][:, [0]] = alpha_init
     # set to a steady position in the beginning with no forces (starting node @ phase 0)
     x_bounds["f"][:, [0]] = 0
-    # x_bounds["cn"][:, [0]] = 0
+    x_bounds["cn"][:, [0]] = 0
 
     u_bounds = BoundsList()
     # gear, pedal_r, pedal_l, knee_r, knee_l, hip_r, hip_l
@@ -222,8 +222,8 @@ def prepare_ocp(
     if with_torque:
         u_scaling["tau"] = [max_joint_torque] * model.nb_dof
 
-    # x_scaling = VariableScalingList()
-    # x_scaling.add("f", [f_max] * model.nb_muscles)
+    x_scaling = VariableScalingList()
+    x_scaling.add("f", [f_max] * model.nb_muscles)
     # x_scaling.add("cn", [cn_max] * model.nb_muscles)
     # x_scaling.add("qdot", scaling=[1] * bio_model.nb_qdot)
 
@@ -238,7 +238,7 @@ def prepare_ocp(
         u_init=u_init,
         objective_functions=objective_functions,
         u_scaling=u_scaling,
-        # x_scaling=x_scaling,
+        x_scaling=x_scaling,
         use_sx=False,
         n_threads=n_threads,
     )
@@ -288,13 +288,13 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
 
 # PROBLEM PARAMETERS
 f_min, f_max, f_init = 0, 10000, 0
-cn_min, cn_max, cn_init = -1.0, 2.0, 0.0
+cn_min, cn_max, cn_init = -0.0, 2.0, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
 fes_max = 1600e-6
-alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
+alpha_min, alpha_max, alpha_init = -0.0, 2.0, 0.0
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 6
-phase_period = round(1 / stim_freq, 3)
+phase_period = round(1 / stim_freq, 4)
 
 
 def main():
@@ -325,7 +325,7 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.2
+    friction_coef_mu=0.15
     target_velocity_rpm=41.92
     target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
@@ -353,8 +353,7 @@ def main():
     q_init, dq_init, knee_range, idx = get_initial_position(biorbd_model_path,
                                                             target_v,
                                                             crank_angle=150)
-
-    print_flag = True
+    print_flag = False
     if print_flag:
         from Param_iden_cycling_Brazil.statistical_analysis.plot_a_function import main as plot_a_function
         plot_a_function(biorbd_model_path, muscle_params, knee_range)

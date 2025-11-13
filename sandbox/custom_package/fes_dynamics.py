@@ -903,7 +903,7 @@ class FESCyclingDynamics(CustomFesDynamics):
             # a_scale = casadi.if_else(a_scale > 0, a_scale, 0)
             # a_scale = casadi.if_else(a_scale > 20000, 20000, a_scale)
             a_sc = a_scale * a_coeff * (1 - exp(-(pwd[m] - pd0) / pdt))
-            # a_sc = casadi.if_else(a_sc > 0, a_sc, 0)
+            a_sc = casadi.if_else(a_sc > 0, a_sc, 0)
 
             sum_aux = 0
             for i in range(n_pulse_trunc):
