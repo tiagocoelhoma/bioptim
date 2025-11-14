@@ -133,7 +133,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('rect_fem_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e2,
+            weight=1e3,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
@@ -146,7 +146,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('vasmed_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e2,
+            weight=1e3,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
@@ -159,7 +159,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e1,
+            weight=1e3,
         )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -169,7 +169,7 @@ def prepare_ocp(
         key="qdot",
         index=idx_crank,
         target= round(target_velocity, 2),
-        weight=1e3,
+        weight=1e2,
     )
 
     x_bounds = BoundsList()
@@ -217,6 +217,8 @@ def prepare_ocp(
         x_init[f"alpha_{m}"] = [0] * n_pulse_trunc
 
     u_init = InitialGuessList()
+    u_init["pw"] = fes_min
+
     u_scaling = VariableScalingList()
     u_scaling["pw"] = [fes_max] * model.nb_muscles
     if with_torque:
