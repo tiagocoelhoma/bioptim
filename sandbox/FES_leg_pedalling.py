@@ -133,7 +133,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('rect_fem_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e4,
+            weight=1e5,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
@@ -146,7 +146,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('vasmed_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e4,
+            weight=1e5,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
@@ -159,7 +159,7 @@ def prepare_ocp(
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e6,
         )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
@@ -169,7 +169,7 @@ def prepare_ocp(
         key="qdot",
         index=idx_crank,
         target= round(target_velocity, 2),
-        weight=1e2,
+        weight=1e3,
     )
 
     x_bounds = BoundsList()
@@ -327,9 +327,9 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.2
+    friction_coef_mu=0.3
     target_velocity_rpm=41.92
-    target_power=25.0
+    target_power=20.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)
@@ -402,7 +402,7 @@ def main():
 
         # --- Animation --- #
         # not implemented yet
-        sol.animate()
+        # sol.animate()
 
         # save data
         states = sol.stepwise_states()
