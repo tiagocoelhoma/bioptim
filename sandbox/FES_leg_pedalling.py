@@ -125,51 +125,51 @@ def prepare_ocp(
     if 'rect_fem_r' in muscles:
         objective_functions.add(
             FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
+            # custom_type=ObjectiveFcn.Lagrange,
+            custom_type=ObjectiveFcn.Mayer,
+            node=Node.ALL,
             target=0,
             mus_num_1=muscles.index('rect_fem_r'),
             mus_num_2=muscles.index('rect_fem_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e3,
         )
     if 'vasmed_r' in muscles:
         objective_functions.add(
             FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
+            # custom_type=ObjectiveFcn.Lagrange,
+            custom_type=ObjectiveFcn.Mayer,
+            node=Node.ALL,
             target=0,
             mus_num_1=muscles.index('vasmed_r'),
             mus_num_2=muscles.index('vasmed_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e5,
+            weight=1e3,
         )
     if 'bflh140_r' in muscles:
         objective_functions.add(
             FesObjective.custom_func_minimize_cocontraction,
-            custom_type=ObjectiveFcn.Lagrange,
-            # custom_type=ObjectiveFcn.Mayer,
-            # node=Node.ALL,
+            # custom_type=ObjectiveFcn.Lagrange,
+            custom_type=ObjectiveFcn.Mayer,
+            node=Node.ALL,
             target=0,
             mus_num_1=muscles.index('bflh140_r'),
             mus_num_2=muscles.index('bflh140_l'),
             pw_offset=fes_min,
             quadratic=True,
-            weight=1e6,
+            weight=1e3,
         )
     # # todo: verify if Lagrange objective is better while trying to achieve lower co-contraction
     objective_functions.add(
-        ObjectiveFcn.Lagrange.TRACK_STATE,
-        # ObjectiveFcn.Mayer.TRACK_STATE,
-        # node=Node.ALL,
+        # ObjectiveFcn.Lagrange.TRACK_STATE,
+        ObjectiveFcn.Mayer.TRACK_STATE,
+        node=Node.ALL,
         key="qdot",
         index=idx_crank,
         target= round(target_velocity, 2),
-        weight=1e3,
+        weight=1e2,
     )
 
     x_bounds = BoundsList()
