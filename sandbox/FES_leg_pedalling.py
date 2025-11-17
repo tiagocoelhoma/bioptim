@@ -392,6 +392,7 @@ def main():
 
         # --- Solve the ocp --- #
         solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
+        solver.set_linear_solver('ma57')  # 'ma57' "ma97"
         solver.set_maximum_iterations(5000)
         sol = ocp.solve(solver=solver)
 
