@@ -270,6 +270,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
         q_init = np.array([[-6.3003], [4.9352], [2.1183], [0.6117], [5.4744], [1.2053], [0.9228]])
         q_init = np.array([[-0.0104], [4.9974], [2.137], [0.3421], [5.5159], [1.2327], [0.6947]])
         q_init = np.array([[-0.0104], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])
+        q_init = np.array([[-0.1037], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])
 
         main_torque(biorbd_model_path, dump_path, q_init, target_v, n_shooting=140, final_time=2.5)
     sol_dict = pickle.load(open(dump_path, 'rb'))
@@ -392,7 +393,7 @@ def main():
 
         # --- Solve the ocp --- #
         solver = Solver.IPOPT(show_online_optim=False, _tol=1e-3)
-        solver.set_linear_solver('ma57')  # 'ma57' "ma97"
+        # solver.set_linear_solver('ma57')  # 'ma57' "ma97"
         solver.set_maximum_iterations(5000)
         sol = ocp.solve(solver=solver)
 
