@@ -168,7 +168,7 @@ def main(
     }
 
     sol.graphs()
-    sol.animate()
+    # sol.animate()
 
     with open(dump_path, "wb") as file:
         del sol.ocp

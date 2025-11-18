@@ -388,87 +388,13 @@ version 4
         OriginParent	pelvis_r
         InsertionParent	tibia_r
     endmusclegroup
-/*	muscle	        rect_fem_r
-		type	            hilldegroote
-		statetype	        degroote
-		musclegroup	        pelvis_to_tibia_r
-		//OriginPosition	    -0.030856600000000001 -0.082530200000000002 0.10125099999999999
-		OriginPosition	    -0.030856600000000001 -0.098530200000000002 0.10125099999999999 //works
-		//InsertionPosition   0.0342039 -0.0662255 0.000493124
-		//OriginPosition	-0.021948700000000002 -0.043396700000000003 0.12174599999999999
-		InsertionPosition	0.029991799999999999 -0.061705700000000002 -0.000432397
-		optimalLength	    0.13287389999999999
-		maximalForce	    1169
-		tendonSlackLength	0.36132376999999999
-		pennationAngle	    0.087266460000000004
-		maxVelocity	        10
-		a_scale         1721
-		ding_tau_1      0.055
-		ding_tau_2      0.0011
-        ding_km         0.144
-	endmuscle
-        viapoint	recfem_r-P2
-			parent	patella_r
-			muscle	rect_fem_r
-			musclegroup	pelvis_to_tibia_r
-			position	0.0091460699999999992 0.058756099999999999 0.00064022500000000002
-		endviapoint
-        viapoint	recfem_r-P3
-			parent	patella_r
-			muscle	rect_fem_r
-			musclegroup	pelvis_to_tibia_r
-			position	0.0110667 0.052400799999999997 -0.00091460700000000001
-		endviapoint
-        viapoint	recfem_r-P4
-			parent	patella_r
-			muscle	rect_fem_r
-			musclegroup	pelvis_to_tibia_r
-			position	0.0045730399999999996 0.0029617900000000002 2.7438200000000001e-05
-		endviapoint
-*/
+
     // femur_r > tibia_r
     musclegroup femur_r_to_tibia_r
         OriginParent	femur_r
         InsertionParent	tibia_r
     endmusclegroup
 
- /*	muscle	vast_lat_r
-		type	            hilldegroote
-		statetype	        degroote
-		musclegroup	        femur_r_to_tibia_r
-		//OriginPosition	    0.027306199999999999 -0.26301200000000002 0.041517600000000002
-		//InsertionPosition	0.034140999999999998 -0.066498299999999996 0.0053614099999999996
-		OriginPosition	0.00439012 -0.22359299999999999 0.031919799999999998
-		InsertionPosition	0.029936600000000001 -0.061959899999999998 0.0047011700000000002
-		optimalLength	    0.090484937031538801
-		maximalForce	    5149
-		tendonSlackLength	0.245690692307835
-		pennationAngle	    0.25286729000000002
-		maxVelocity	        10
-		a_scale         1721
-		ding_tau_1      0.055
-		ding_tau_2      0.0011
-        ding_km         0.144
-	endmuscle
-		viapoint	vaslat_r-P2
-			parent	femur_r
-			muscle	vast_lat_r
-			musclegroup	femur_r_to_tibia_r
-			position	0.0246029 -0.312475 0.0374074
-		endviapoint
-		viapoint	vaslat_r-P3
-			parent	patella_r
-			muscle	vast_lat_r
-			musclegroup	femur_r_to_tibia_r
-			position	0.0094204600000000003 0.051013900000000001 0.012895999999999999
-		endviapoint
-		viapoint	vaslat_r-P4
-			parent	patella_r
-			muscle	vast_lat_r
-			musclegroup	femur_r_to_tibia_r
-			position	0.0045730399999999996 0.0029788200000000001 0.0067040700000000003
-		endviapoint
-*/
 	muscle	vasmed_r
 		type	hilldegroote
 		statetype	degroote
