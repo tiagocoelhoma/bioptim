@@ -99,9 +99,9 @@ def prepare_ocp(
 
     # Add objective functions
     objective_functions = ObjectiveList()
-    # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="q", weight=1e0)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="qdot", weight=1e0)
-    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e0)
+    objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_CONTROL, key="pw", weight=1e1)
     # objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="cn", weight=1e1)
     objective_functions.add(ObjectiveFcn.Lagrange.MINIMIZE_STATE, key="f", weight=0.01)
     # if with_friction:
@@ -272,6 +272,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
         q_init = np.array([[-0.0104], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])  # tested c495f6ff (starting from here)
         # q_init = np.array([[-0.1037], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])  # tested 33c6bbc1
         # q_init = np.array([[-0.1476], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])  # tested 6467db78
+        q_init = np.array([[-0.0104], [5.0596], [2.104], [0.3421], [5.5677], [1.1865], [0.7154]])
 
         main_torque(biorbd_model_path, dump_path, q_init, target_v, n_shooting=140, final_time=2.5)
     sol_dict = pickle.load(open(dump_path, 'rb'))
@@ -329,9 +330,9 @@ def main():
     # muscle_params_pd0_pdt = read_params(biorbd_model_path, filename)
 
     friction_coef_b=0.78
-    friction_coef_mu=0.3
+    friction_coef_mu=0.2
     target_velocity_rpm=41.92
-    target_power=20.0
+    target_power=25.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
     friction_coef_b = round(torque_crank / target_v, 4)

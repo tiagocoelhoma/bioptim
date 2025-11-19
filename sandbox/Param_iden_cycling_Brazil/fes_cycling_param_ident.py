@@ -41,6 +41,11 @@ def get_initial_position():
         q_init = np.array([[-0.1476], [4.9974], [2.1215], [0.3421], [5.5159], [1.2117], [0.6947]])
         # q_init = np.array([[-0.1037], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])  # tested 33c6bbc1
         q_init = np.array([[-0.0104], [4.9663], [2.1172], [0.3629], [5.4951], [1.2129], [0.7154]])
+        q_init = np.array([[-0.0104], [4.9663], [2.0974], [0.3836], [5.5054], [1.1799], [0.7361]])
+
+        q_init = np.array([[-0.0104], [5.0182], [2.104], [0.3421], [5.5366], [1.1865], [0.7361]])
+        q_init = np.array([[-0.0104], [5.0596], [2.104], [0.3421], [5.5677], [1.1865], [0.7154]])
+        # q_init = np.array([[-0.0104], [4.9663], [2.0182], [0.3421], [5.5469], [1.0411], [0.7154]])
 
         main_torque(biorbd_model_path, dump_path, q_init, n_shooting=64, final_time=1.5)
     sol_dict = pickle.load(open(dump_path, 'rb'))
@@ -64,7 +69,7 @@ def main():
     data_information = [
         # [model, muscle, [node_start, node_end]] <- node_start and end corresponds to a position within the crank cycle
         ["models/legcyc_rectfem_r.bioMod", 'rect_fem_r', [1, -1]],
-        # ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [1, -1]],
+        ["models/legcyc_vasmed_r.bioMod", 'vasmed_r', [1, -1]],
         ["models/legcyc_hams_r.bioMod", 'bflh140_r', [1, -1]],
         ["models/legcyc_rectfem_r.bioMod", 'rect_fem_l', [1, -1]],
         ["models/legcyc_vasmed_r.bioMod", 'vasmed_l', [1, -1]],
