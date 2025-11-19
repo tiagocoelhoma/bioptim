@@ -295,7 +295,7 @@ def get_initial_position(biorbd_model_path='models/legcyc.bioMod', target_v=-4.4
 f_min, f_max, f_init = 0, 10000, 0
 cn_min, cn_max, cn_init = 0.0, 1.5, 0.0
 tau_min, tau_max, tau_init = 0.00, 0.00, 0.0
-fes_max = 1600e-6
+fes_max = 1000e-6
 alpha_min, alpha_max, alpha_init = -1.0, 2.0, 0.0
 stim_freq = 35  # stimulation frequency in Hertz
 n_pulse_trunc = 6
