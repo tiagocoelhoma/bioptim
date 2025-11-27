@@ -158,7 +158,7 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
                          np.full_like(activated_points, radial_offsets[idx]),
                          'p',
                          label=f"{muscle_names[idx]}")
-    axes[0].set_xticks(np.linspace(0, 2 * np.pi, 72, endpoint=False))
+    axes[0].set_xticks(np.linspace(0, 2 * np.pi, 36, endpoint=False))
     axes[0].set_title("a) stimulation Pattern", fontsize=14)
     # axes[0].set_xticklabels(['0°', '90°', '180°', '270°'])
     axes[0].set_yticks([])  # Remove radial ticks
@@ -216,6 +216,57 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
     print(f'Mean power: {mean_pwr:.2f} ± {std_pwr:.2f} W')
 
     plt.savefig('Param_iden_cycling_Brazil/opt_sol_results/images/stim_pattern.png', format='png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    # --------------------------------- Second Figure ---------------------------------
+    fig = plt.figure(figsize=(16, 6))
+    ax = fig.add_subplot(111, polar=True)
+
+    # ------------------------------------ plot 1 ------------------------------------
+    q_size = len(q_data_aux[0])
+    pulse_width = np.array(pw_sol)
+    node_count = pulse_width.shape[0]
+    repeat_factor = q_size // node_count
+
+    pw_squeezed = np.squeeze(pulse_width, axis=2)
+    pw_stretched = np.repeat(pw_squeezed, repeat_factor, axis=0)
+    pw_stretched = pw_stretched[:q_size, :]
+
+    radial_offsets = np.linspace(10.5, 20.5, 8)
+
+    q_radians = q_data_aux[0] % (2 * np.pi) * -1
+
+    for idx in range(n_mus):
+        # Dados estendidos
+        pw_data_stretched = pw_stretched[:, idx]
+
+        # Offset
+        off_set = pd0_pdt_data[muscle_names[idx]][1] + 10e-6
+
+        # Índices ativados
+        activated_points = np.where(pw_data_stretched[:-5] > off_set)[0]
+
+        if len(activated_points) > 0:
+            ax.plot(q_radians[activated_points],
+                    np.full_like(activated_points, radial_offsets[idx]),
+                    'p',
+                    label=f"{muscle_names[idx]}")
+
+    # Ajustes do gráfico
+    ax.set_xticks(np.linspace(0, 2 * np.pi, 36, endpoint=False))
+    ax.set_title("b) Stimulation Pattern: 4 muscles", fontsize=14)
+    ax.set_yticks([])
+    ax.set_yticklabels([])
+
+    fig.legend(loc='lower center', fontsize='medium', frameon=False, ncol=6)
+
+    plt.savefig(
+        'Param_iden_cycling_Brazil/opt_sol_results/images/stim_pattern_only.png',
+        format='png',
+        dpi=300,
+        bbox_inches='tight'
+    )
+
     plt.show()
 
 
