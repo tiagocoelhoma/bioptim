@@ -474,7 +474,7 @@ version 4
 		endviapoint
 
 
-/*	muscle	bflh140_r
+	muscle	bflh140_r
 		type	hilldegroote
 		statetype	degroote
 		musclegroup	pelvis_to_tibia_r
@@ -496,7 +496,7 @@ version 4
 			musclegroup	pelvis_to_tibia_r
 			position	-0.031611 -0.435662600000000003 0.0332854
 		endviapoint
-*/
+
     // pelvis > tibia (workaround for knee joint)
     musclegroup pelvis_to_tibia_l
         OriginParent	    pelvis_l
@@ -582,7 +582,7 @@ version 4
 		endviapoint
 
 
-/*	muscle	bflh140_l
+	muscle	bflh140_l
 		type	hilldegroote
 		statetype	degroote
 		musclegroup	pelvis_to_tibia_l
@@ -605,4 +605,3 @@ version 4
 			musclegroup	pelvis_to_tibia_l
 			position	-0.031611 -0.435662600000000003 -0.0332854
 		endviapoint
-*/

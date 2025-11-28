@@ -254,7 +254,7 @@ def plot_power(dump_path, model, file, friction_coef_mu,friction_coef_b, set_gra
 
     # Ajustes do gráfico
     ax.set_xticks(np.linspace(0, 2 * np.pi, 36, endpoint=False))
-    ax.set_title("b) Stimulation Pattern: 4 muscles", fontsize=14)
+    ax.set_title("a) Stimulation Pattern: 6 muscles", fontsize=14)
     ax.set_yticks([])
     ax.set_yticklabels([])
 
