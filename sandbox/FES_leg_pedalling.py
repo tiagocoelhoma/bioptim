@@ -331,7 +331,7 @@ def main():
 
     friction_coef_b=0.78
     friction_coef_mu=0.2
-    target_velocity_rpm=41.92
+    target_velocity_rpm=35 #41.92
     target_power=25.0
     target_v = (-(target_velocity_rpm * 2 * np.pi) / 60)  # rpm to rad/s
     torque_crank = target_power / target_v
@@ -339,7 +339,7 @@ def main():
 
     with_residual_torque = True
     with_friction = True
-    n_shooting = 70
+    n_shooting = 82
     max_joint_torque = 50
 
     extra_params = {'t_phase': phase_period,
